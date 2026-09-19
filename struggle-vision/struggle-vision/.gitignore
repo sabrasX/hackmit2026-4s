@@ -25,3 +25,6 @@ Thumbs.db
 # Downloaded MediaPipe model
 models/
 *.task
+
+# Recorded hand position (per camera setup / per child)
+calibration*.json
