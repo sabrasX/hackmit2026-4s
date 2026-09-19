@@ -47,7 +47,7 @@ def ensure_model(path=DEFAULT_MODEL_PATH) -> Path:
 
 
 class HandTracker:
-    """detect(frame_bgr, t_sec) -> (21, 2) array of pixel coordinates, or None."""
+    """detect(frame_bgr, t_sec) -> ((21, 2) pixel coordinates, "Left"/"Right"), or (None, None)."""
 
     def __init__(self, model_path=None):
         path = ensure_model(model_path or DEFAULT_MODEL_PATH)
@@ -69,9 +69,13 @@ class HandTracker:
         self._last_ts = ts
         result = self._landmarker.detect_for_video(image, ts)
         if not result.hand_landmarks:
-            return None
+            return None, None
         h, w = frame_bgr.shape[:2]
-        return np.array([[p.x * w, p.y * h] for p in result.hand_landmarks[0]])
+        pts = np.array([[p.x * w, p.y * h] for p in result.hand_landmarks[0]])
+        # MediaPipe labels handedness assuming an un-mirrored image; it's what
+        # tells palm-towards-camera apart from back-towards-camera.
+        side = result.handedness[0][0].category_name if result.handedness else "Right"
+        return pts, side
 
     def close(self):
         self._landmarker.close()

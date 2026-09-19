@@ -1,34 +1,48 @@
-// TODO: Student dashboard
-// - "Hi {name}!" greeting + Log Out button
-// - <ActivityCard>s: "Start Writing Session" -> /write; Coloring/Tracing greyed out "Coming soon"
-// NOTE: This is a bare-bones functional test page with NO styling.
-// The frontend teammate will add Tailwind + design later.
-
 import { useNavigate } from 'react-router-dom'
+import DoodleBackground from '../components/DoodleBackground.jsx'
+import ActivityCard from '../components/ActivityCard.jsx'
 import { useAuth } from '../hooks/useAuth.jsx'
 
 export default function Dashboard() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
 
-  const handleLogout = async () => {
-    await logout()
-    navigate('/login')
-  }
-
   return (
-    <main>
-      <h1>Dashboard</h1>
-      {user && <p>Hi, {user.name}!</p>}
+    <DoodleBackground>
+      <main className="mx-auto max-w-3xl px-6 py-10">
+        <header className="mb-10 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h1 className="font-display text-4xl font-bold text-sky-700 sm:text-5xl">
+              Hi {user?.name}! 👋
+            </h1>
+            <p className="mt-2 text-lg text-slate-500">What would you like to practice today?</p>
+          </div>
+          <button type="button" onClick={logout} className="btn-secondary text-base">
+            Log Out
+          </button>
+        </header>
 
-      <button onClick={() => navigate('/write')}>Start Writing Session</button>
-
-      <p style={{ opacity: 0.5 }}>Coloring (Coming soon)</p>
-      <p style={{ opacity: 0.5 }}>Tracing (Coming soon)</p>
-
-      <button onClick={handleLogout} style={{ marginTop: '2em' }}>
-        Log Out
-      </button>
-    </main>
+        <div className="grid gap-6 sm:grid-cols-1">
+          <ActivityCard
+            title="Start Writing Session"
+            icon="📝"
+            description="Practice writing words with a little help when you need it"
+            onClick={() => navigate('/write')}
+          />
+          <ActivityCard
+            title="Coloring"
+            icon="🎨"
+            description="Color fun pictures"
+            disabled
+          />
+          <ActivityCard
+            title="Tracing"
+            icon="✍️"
+            description="Trace letters and shapes"
+            disabled
+          />
+        </div>
+      </main>
+    </DoodleBackground>
   )
 }

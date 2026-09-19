@@ -1,104 +1,95 @@
-// TODO: Login page
-// - Username/password fields + big "Log In" button; call login() from useAuth
-// - On success go to /dashboard; friendly message on failure
-// NOTE: This is a bare-bones functional test form with NO styling.
-// The frontend teammate will add Tailwind + design later.
-// Fields are pre-filled with a demo account for quick testing - remove before the real demo.
-
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import DoodleBackground from '../components/DoodleBackground.jsx'
+import LoadingScreen from '../components/LoadingScreen.jsx'
 import { useAuth } from '../hooks/useAuth.jsx'
 
-// Minimal inline styles so the form reads as a form during testing -
-// still not the real design, just enough to tell fields from buttons.
-const inputStyle = {
-  padding: '0.5rem 0.75rem',
-  fontSize: '1rem',
-  border: '1px solid #94a3b8',
-  borderRadius: '6px',
-  backgroundColor: '#f1f5f9',
-  color: '#0f172a',
-  width: '220px',
-}
-
-const buttonStyle = {
-  padding: '0.5rem 1.5rem',
-  fontSize: '1rem',
-  border: 'none',
-  borderRadius: '6px',
-  backgroundColor: '#2563eb',
-  color: 'white',
-  cursor: 'pointer',
-}
-
 export default function Login() {
-  const [email, setEmail] = useState('student1@demo.com')
-  const [password, setPassword] = useState('demo1234')
-  const [error, setError] = useState(null)
-  const [loading, setLoading] = useState(false)
+  const { login, loading, user, isDemo } = useAuth()
   const navigate = useNavigate()
-  const { login } = useAuth()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (user) navigate('/dashboard', { replace: true })
+  }, [user, navigate])
+
+  if (loading) return <LoadingScreen />
+  if (user) return null
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    setError(null)
-    setLoading(true)
-
+    setError('')
+    setSubmitting(true)
     try {
       await login(email, password)
       navigate('/dashboard')
-    } catch (err) {
-      setError(err.message)
+    } catch {
+      setError('Oops! That email or password did not work. Try again!')
     } finally {
-      setLoading(false)
+      setSubmitting(false)
     }
   }
 
   return (
-    <main
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '0.75rem',
-      }}
-    >
-      <h1>Login</h1>
-      <form
-        onSubmit={handleSubmit}
-        autoComplete="off"
-        style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}
-      >
-        <input
-          type="text"
-          name="username"
-          autoComplete="off"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Username"
-          disabled={loading}
-          style={inputStyle}
-        />
+    <DoodleBackground>
+      <main className="flex min-h-dvh flex-col items-center justify-center px-6 py-12">
+        <div className="card-doodle w-full max-w-md p-8 sm:p-10">
+          <div className="mb-8 text-center">
+            <div className="mb-4 text-6xl animate-wiggle" aria-hidden="true">
+              ✏️
+            </div>
+            <h1 className="font-display text-4xl font-bold text-sky-700">The Pen Pal</h1>
+            <p className="mt-3 text-lg text-slate-500">Learning made fun!</p>
+          </div>
 
-        <input
-          type="text"
-          name="password"
-          autoComplete="off"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Password"
-          disabled={loading}
-          style={inputStyle}
-        />
+          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+            <label className="flex flex-col gap-2">
+              <span className="font-semibold text-slate-600">Email</span>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="input-doodle"
+                placeholder="you@school.com"
+                required
+                autoComplete="username"
+              />
+            </label>
 
-        <button type="submit" disabled={loading} style={buttonStyle}>
-          {loading ? 'Logging in...' : 'Log In'}
-        </button>
+            <label className="flex flex-col gap-2">
+              <span className="font-semibold text-slate-600">Password</span>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="input-doodle"
+                placeholder="••••••••"
+                required
+                autoComplete="current-password"
+              />
+            </label>
 
-        {error && <p style={{ color: 'red' }}>{error}</p>}
-      </form>
-    </main>
+            {error && (
+              <p className="rounded-xl bg-red-50 px-4 py-3 text-center text-red-600" role="alert">
+                {error}
+              </p>
+            )}
+
+            <button type="submit" className="btn-primary mt-2 w-full" disabled={submitting}>
+              {submitting ? 'Logging in…' : 'Log In'}
+            </button>
+          </form>
+
+          {isDemo && (
+            <p className="mt-6 text-center text-sm text-slate-400">
+              Demo mode — any email &amp; password works
+            </p>
+          )}
+        </div>
+      </main>
+    </DoodleBackground>
   )
 }

@@ -1,4 +1,7 @@
-// TODO: the word in a large dashed outline (-webkit-text-stroke, transparent fill) for the child to copy
 export default function TraceHint({ word }) {
-  return null
+  return (
+    <p className="trace-hint text-5xl font-bold sm:text-6xl" aria-label={`Trace the word ${word}`}>
+      {word}
+    </p>
+  )
 }
