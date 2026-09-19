@@ -1,0 +1,10 @@
+/* TODO: kid-friendly theme - big rounded font, bright colours, large tap targets */
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Nunito", system-ui, sans-serif;
+}
+
+body {
+  @apply bg-sky-50 text-slate-800 font-sans;
+}
