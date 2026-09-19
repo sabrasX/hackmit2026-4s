@@ -16,24 +16,31 @@ class Config:
     frame_width: int = 960              # frames are resized to this width for speed
 
     # --- 1) stopped: hand parked in one spot with quiet fingers ---
-    stop_seconds: float = 5.0
+    stop_seconds: float = 1.0
     still_extent: float = 0.30          # box the grip point stays inside, in hand sizes
-    stall_articulation: float = 0.04    # finger speed still quiet enough to count as stalled
+    stall_articulation: float = 0.5    # finger speed still quiet enough to count as stalled
 
-    # --- 2) fidget: going back and forth, or fingers churning in place ---
-    fidget_window_s: float = 3.0
-    sample_hz: float = 15.0
-    step_noise: float = 0.03            # grip steps smaller than this count as landmark jitter
-    fidget_rev_per_s: float = 6.0       # direction reversals per second
-    fidget_max_efficiency: float = 0.25  # net displacement / path length
-    fidget_articulation: float = 0.06   # finger speed that counts as churning
-    fidget_max_progress: float = 0.60   # churning only counts if the hand travelled less than this
+    # --- 2) twiddling the pencil: hand turned over, fingers busy ---
+    twiddle_articulation: float = 0.06  # finger speed that counts as busy
+    twiddle_confirm_s: float = 0.8      # palm up and busy this long => twiddling
+
+    # --- 3) hand gone flat: finger joint angles vs. the demonstrated grip ---
+    # Angles are in degrees, 180 being a dead straight finger. Writing moves the
+    # joints by a few degrees; a hand flattening onto the page opens all fifteen
+    # at once, so the gap between the two is wide.
+    calibrate_seconds: float = 3.0      # how long the demonstrated grip is recorded for
+    calibrate_min_frames: int = 20      # fewer good frames than this => calibration failed
+    calibrate_max_wobble_deg: float = 8.0   # the grip must be held this steady while recording
+    flat_tolerance_deg: float = 20.0    # straighter than the grip by this much => flat
+    flat_confirm_s: float = 0.5         # flat this long => flag it
+    posture_smoothing: float = 0.15     # EMA weight on the newest measurement
 
     # --- joints ---
     # Landmark jitter is the same size as real finger motion, so the pose is
     # smoothed and a per-joint floor is subtracted before anything is measured.
     pose_smoothing: float = 0.35        # EMA weight on the newest pose (lower = smoother)
     joint_noise: float = 0.020          # per-joint per-frame jitter floor, in hand sizes
+    artic_window_s: float = 3.0         # finger speed is averaged over this window
 
     # --- general ---
     hand_lost_s: float = 1.5            # hand unseen this long => reset history ("away", not "struggling")

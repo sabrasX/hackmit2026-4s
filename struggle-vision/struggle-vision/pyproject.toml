@@ -13,6 +13,7 @@ dependencies = [
     "numpy",
     "opencv-python>=4.8",
     "mediapipe>=0.10.14",
+    "websockets>=12",
 ]
 
 [project.optional-dependencies]
@@ -20,6 +21,7 @@ dev = ["pytest"]
 
 [project.scripts]
 struggle-vision = "struggle_vision.cli:main"
+struggle-vision-server = "struggle_vision.server:main"
 
 [tool.setuptools]
 packages = ["struggle_vision"]
