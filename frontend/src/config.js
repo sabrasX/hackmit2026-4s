@@ -1,6 +1,6 @@
 // TODO: tune these numbers after testing with real writing (WEIGHTS must add up to 1).
 // Words practised in the writing session, in order.
-export const SENTENCE = 'Welcome to better Education'
+export const SENTENCE = 'Welcome to The Pen Pal'
 export const WORDS = SENTENCE.split(' ')
 
 // Vision server WebSocket URL.
