@@ -42,14 +42,13 @@ def status_payload(t: float, st, det) -> dict:
         "handVisible": bool(st.hand_visible),
         # signals
         "stopped": bool(st.stopped),
-        "twiddling": bool(st.twiddling),
+        "palmFacingAway": bool(st.palm_facing_away),
         "struggling": bool(st.struggling),
         "badPosture": bool(st.bad_posture),
         "reasons": list(st.reasons),
         # the raw numbers behind them, for graphing
         "stillExtent": num(st.still_extent, 4),
         "articulation": num(st.articulation, 4),
-        "palmUp": bool(st.palm_up),
         "fingerExtension": num(st.finger_extension, 2),
         "extensionExcess": num(st.extension_excess, 2),
         # calibration state, so the UI can drive it

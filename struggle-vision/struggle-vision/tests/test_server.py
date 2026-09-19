@@ -13,11 +13,11 @@ import websockets
 from struggle_vision import StruggleDetector
 from struggle_vision.server import serve, status_payload
 
-from test_detector import FLAT, FPS, PALM_UP, calibrated_detector, feed
+from test_detector import FLAT, PALM_AWAY, calibrated_detector, feed
 
 EXPECTED_KEYS = {
-    "t", "handVisible", "stopped", "twiddling", "struggling", "badPosture", "reasons",
-    "stillExtent", "articulation", "palmUp", "fingerExtension", "extensionExcess",
+    "t", "handVisible", "stopped", "palmFacingAway", "struggling", "badPosture", "reasons",
+    "stillExtent", "articulation", "fingerExtension", "extensionExcess",
     "calibrated", "calibrating", "calibrationProgress", "calibrationError",
 }
 
@@ -52,14 +52,11 @@ def test_payload_reports_a_stall():
     assert p["stopped"] and p["struggling"] and "STOPPED" in p["reasons"]
 
 
-def test_payload_reports_twiddling():
+def test_payload_reports_the_palm_facing_away():
     det = StruggleDetector()
-    t = 0.0
-    for i in range(int(6.0 * FPS)):                          # palm up, fingers working
-        t = i / FPS
-        det.update_hand(t, _twiddling_hand(t))
+    t = feed(det, 3.0, template=PALM_AWAY)
     p = payload_after(det, t)
-    assert p["palmUp"] and p["twiddling"] and p["struggling"]
+    assert p["palmFacingAway"] and p["struggling"] and "WRONG POSITION" in p["reasons"]
 
 
 def test_payload_reports_a_flat_hand():
@@ -125,12 +122,3 @@ def test_a_client_receives_the_stream_and_can_send_commands():
     assert commands == [{"type": "calibrate"}, {"type": "reset"}]
 
 
-def _twiddling_hand(t):
-    import math
-
-    import numpy as np
-
-    from test_detector import CURLING, HS
-    pts = PALM_UP.copy()
-    pts[CURLING, 1] += 0.12 * math.sin(2 * math.pi * 3.0 * t)
-    return pts * HS + np.array([400.0, 300.0])

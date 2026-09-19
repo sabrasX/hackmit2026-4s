@@ -9,8 +9,8 @@ Two signals, both read off the joints:
 * **stopped** - the grip point stays inside a small box *and* the fingers stay
   quiet, for `stop_seconds`. Requiring both is what separates a real stall from
   a hand that is parked in one spot but still working.
-* **twiddling** - the hand has been turned over, palm towards the camera, and
-  the fingers are busy: the child is playing with the pencil, not writing.
+* **palm facing away** - the hand has been turned over, palm off the page: it
+  isn't in a writing position at all.
 * **wrong position** - the fingers are straighter than the writing grip a
   teacher demonstrated during calibration: the hand has gone flat.
 
@@ -96,14 +96,14 @@ def normalise_pose(pts):
     return np.stack([rel @ along, rel @ across], axis=1)
 
 
-def palm_towards_camera(pts, handedness: str = "Right") -> bool:
-    """True when we're looking at the palm rather than the back of the hand.
+def palm_facing_away(pts, handedness: str = "Right") -> bool:
+    """True when the palm has turned off the page and towards the camera.
 
     Which way round the knuckles run tells us which face we're seeing: going
     wrist -> index knuckle -> pinky knuckle winds one way for the palm and the
     other for the back, and the two swap over between left and right hands.
-    Writing is normally filmed from the back of the hand, so this turning true
-    means the hand has been turned over.
+    Writing is filmed from the back of the hand, so this turning true means the
+    hand is no longer in a writing position.
     """
     v1 = pts[INDEX_MCP] - pts[WRIST]
     v2 = pts[PINKY_MCP] - pts[WRIST]
@@ -146,10 +146,9 @@ def load_calibration(path) -> PostureReference:
 class Status:
     hand_visible: bool
     stopped: bool
-    twiddling: bool
     still_extent: float
     articulation: float
-    palm_up: bool
+    palm_facing_away: bool
     bad_posture: bool
     finger_extension: float     # mean joint angle right now, degrees
     extension_excess: float     # how much straighter than the demonstrated grip
@@ -157,11 +156,11 @@ class Status:
 
     @property
     def struggling(self) -> bool:
-        return self.stopped or self.twiddling
+        return self.stopped or self.palm_facing_away
 
     @property
     def reasons(self) -> list:
-        pairs = (("STOPPED", self.stopped), ("WRONG POSITION", self.twiddling))
+        pairs = (("STOPPED", self.stopped), ("WRONG POSITION", self.palm_facing_away))
         return [name for name, on in pairs if on]
 
 
@@ -184,9 +183,7 @@ class StruggleDetector:
         self.pose_t = None
         self.artic = deque()      # (t, finger speed in hand sizes/s)
         self.articulation = 0.0
-        self.palm_up = False
-        self.twiddling = False
-        self._twiddle_since = None
+        self.palm_facing_away = False
 
     def reset_posture(self):
         self.finger_extension = 0.0
@@ -254,7 +251,7 @@ class StruggleDetector:
 
         points: the (21, 2) array of landmark pixel coordinates. A bare (x, y)
         grip point is also accepted, with hand_size given explicitly; then only
-        grip travel is available, and articulation and twiddling stay off.
+        grip travel is available; articulation and palm direction stay off.
         handedness: "Left" or "Right", as the tracker reported it. Only used to
         work out which way the hand is facing.
         """
@@ -279,7 +276,7 @@ class StruggleDetector:
         self.hand_size = size if self.hand_size is None else 0.95 * self.hand_size + 0.05 * size
         self._update_articulation(t, pose, fresh)
         self._update_posture(t, angles)
-        self._update_twiddle(t, pts if pose is not None else None, handedness)
+        self._update_palm(pts if pose is not None else None, handedness)
         self.last_hand_t = t
         x, y = self.grip
 
@@ -310,19 +307,11 @@ class StruggleDetector:
             self.artic.popleft()
         self.articulation = float(np.mean([a for _, a in self.artic]))
 
-    def _update_twiddle(self, t, pts, handedness):
-        """Pencil twiddling: the hand turned over, fingers busy."""
-        c = self.cfg
+    def _update_palm(self, pts, handedness):
+        """Which way the hand is facing."""
         if pts is None:
             return
-        self.palm_up = palm_towards_camera(pts, handedness)
-        if self.palm_up and self.articulation >= c.twiddle_articulation:
-            if self._twiddle_since is None:
-                self._twiddle_since = t
-        else:
-            self._twiddle_since = None
-        self.twiddling = (self._twiddle_since is not None
-                          and t - self._twiddle_since >= c.twiddle_confirm_s)
+        self.palm_facing_away = palm_facing_away(pts, handedness)
 
     def _update_posture(self, t, angles):
         """Record the demonstrated grip, or score the live hand against it."""
@@ -374,7 +363,7 @@ class StruggleDetector:
     def evaluate(self, t: float) -> Status:
         visible = self.hand_visible(t)
         stopped, extent = self._stopped(t)
-        return Status(visible, stopped, self.twiddling and visible, extent,
-                      self.articulation, self.palm_up and visible,
+        return Status(visible, stopped, extent,
+                      self.articulation, self.palm_facing_away and visible,
                       self.bad_posture and visible, self.finger_extension,
                       self.extension_excess, self.reference is not None)

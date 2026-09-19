@@ -75,8 +75,8 @@ def main(argv=None):
         log_dir.mkdir(parents=True, exist_ok=True)
         log_file = open(log_dir / f"session_{datetime.now():%Y%m%d_%H%M%S}.csv", "w", newline="")
         log = csv.writer(log_file)
-        log.writerow(["t_sec", "hand_visible", "stopped", "twiddling", "struggling", "bad_posture",
-                      "still_extent", "articulation", "palm_up",
+        log.writerow(["t_sec", "hand_visible", "stopped", "struggling", "bad_posture",
+                      "still_extent", "articulation", "palm_facing_away",
                       "finger_extension", "extension_excess"])
 
     prev = {}
@@ -118,7 +118,7 @@ def main(argv=None):
 
         # --- decisions ---
         st = det.evaluate(t)
-        for name, on in (("STOPPED", st.stopped), ("WRONG POSITION", st.twiddling),
+        for name, on in (("STOPPED", st.stopped), ("WRONG POSITION", st.palm_facing_away),
                          ("WRONG POSITION", st.bad_posture)):
             if on and not prev.get(name):
                 print(f"[{t:7.1f}s] {name}")
@@ -159,16 +159,15 @@ def main(argv=None):
         cv2.putText(frame, HELP_LINE, (15, h - 38), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (180, 180, 180), 1)
 
         dbg = (f"still extent {st.still_extent:.2f} (<{cfg.still_extent})   "
-               f"finger speed {st.articulation:.3f} (quiet <={cfg.stall_articulation}, "
-               f"busy >={cfg.twiddle_articulation})   "
-               f"palm {'faced away' if st.palm_up else 'down'}")
+               f"finger speed {st.articulation:.3f} (quiet <={cfg.stall_articulation})   "
+               f"palm {'faced away' if st.palm_facing_away else 'down'}")
         cv2.putText(frame, dbg, (15, h - 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
         # --- log ---
         if log is not None and t - last_log >= cfg.log_every_s:
-            log.writerow([f"{t:.2f}", int(st.hand_visible), int(st.stopped), int(st.twiddling),
+            log.writerow([f"{t:.2f}", int(st.hand_visible), int(st.stopped),
                           int(st.struggling), int(st.bad_posture), f"{st.still_extent:.3f}",
-                          f"{st.articulation:.3f}", int(st.palm_up),
+                          f"{st.articulation:.3f}", int(st.palm_facing_away),
                           f"{st.finger_extension:.1f}", f"{st.extension_excess:.1f}"])
             last_log = t
 

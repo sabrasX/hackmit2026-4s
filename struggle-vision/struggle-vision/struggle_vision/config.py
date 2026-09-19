@@ -20,9 +20,7 @@ class Config:
     still_extent: float = 0.30          # box the grip point stays inside, in hand sizes
     stall_articulation: float = 0.5    # finger speed still quiet enough to count as stalled
 
-    # --- 2) twiddling the pencil: hand turned over, fingers busy ---
-    twiddle_articulation: float = 0.06  # finger speed that counts as busy
-    twiddle_confirm_s: float = 0.8      # palm up and busy this long => twiddling
+    # --- 2) palm facing away: read straight off the landmarks, nothing to tune ---
 
     # --- 3) hand gone flat: finger joint angles vs. the demonstrated grip ---
     # Angles are in degrees, 180 being a dead straight finger. Writing moves the

@@ -8,7 +8,7 @@ app raises a flag when it sees any of these signals:
 | Signal | What it looks like |
 |---|---|
 | **Stopped** | the hand stays in one spot *and* the fingers go quiet, for several seconds |
-| **Twiddling** | the hand is turned over, palm up, with the fingers busy — playing with the pencil |
+| **Palm facing away** | the hand has been turned over, palm off the page — not a writing position at all |
 | **Wrong position** | the fingers are straighter than the grip a teacher demonstrated — the hand has gone flat on the page |
 
 It needs nothing but the hand: no tape, no markers, no setup on the pencil.
@@ -49,13 +49,11 @@ From those:
   for `stop_seconds` **and** articulation stays under `stall_articulation`.
   Both conditions matter — a hand parked in one spot with the fingers still
   working isn't stalled, it's doing something.
-- **Twiddling:** the palm is towards the camera *and* articulation is over
-  `twiddle_articulation`, for `twiddle_confirm_s`. Writing is filmed from the
-  back of the hand, so seeing the palm at all means the hand has been turned
-  over; add busy fingers to that and the child is playing with the pencil
-  rather than writing with it. Which face we're looking at comes from the
-  winding order of wrist → index knuckle → pinky knuckle, combined with the
-  left/right label the tracker reports.
+- **Palm facing away:** writing is filmed from the back of the hand, so seeing
+  the palm at all means the hand has been turned off the page. Which face we're
+  looking at comes from the winding order of wrist → index knuckle → pinky
+  knuckle, combined with the left/right label the tracker reports. There is no
+  threshold and no timer — it's read straight off the landmarks.
 - **Wrong position:** the fingers are, on average, more than `flat_tolerance_deg`
   straighter than the demonstrated grip, for `flat_confirm_s`. See
   [Calibration](#calibration).
@@ -103,7 +101,7 @@ python -m struggle_vision --source 1                  # use camera index 1
 python -m struggle_vision --source http://192.168.1.50:4747/video
 ```
 
-Stopped and twiddling work the moment you point it at a hand. Hand position needs a
+Stopped and palm-facing-away work the moment you point it at a hand. Hand position needs a
 one-off calibration first, below.
 
 | Key | |
@@ -163,7 +161,7 @@ Hold the grip still and press `c` again.
 Any setting can be overridden on the command line:
 
 ```bash
-python -m struggle_vision --source 1 --stop-seconds 8 --twiddle-articulation 0.08
+python -m struggle_vision --source 1 --stop-seconds 8 --still-extent 0.25
 python -m struggle_vision --help        # full list
 ```
 
@@ -176,8 +174,8 @@ every 0.2 s:
 |---|---|
 | `t_sec` | seconds since the session started |
 | `hand_visible` | detection flag (0/1) |
-| `stopped`, `twiddling`, `struggling`, `bad_posture` | signal flags (0/1) |
-| `still_extent`, `articulation`, `palm_up` | the raw numbers behind stopped and twiddling |
+| `stopped`, `struggling`, `bad_posture` | signal flags (0/1) |
+| `still_extent`, `articulation`, `palm_facing_away` | the raw numbers behind stopped and palm facing away |
 | `finger_extension`, `extension_excess` | mean joint angle, and how far above the demonstrated grip it sits |
 
 ## Streaming to a web UI
@@ -205,13 +203,12 @@ One JSON object per message, camelCase, flat:
   "t": 12.34,
   "handVisible": true,
   "stopped": false,
-  "twiddling": true,
+  "palmFacingAway": true,
   "struggling": true,
   "badPosture": false,
-  "reasons": ["TWIDDLING"],
+  "reasons": ["WRONG POSITION"],
   "stillExtent": 0.41,
   "articulation": 0.093,
-  "palmUp": true,
   "fingerExtension": 148.2,
   "extensionExcess": 3.9,
   "calibrated": true,
@@ -246,12 +243,10 @@ numbers are printed along the bottom of the video window.
 
 1. Record 30 s of the child (or a volunteer) writing normally and note the range of
    `finger speed` (articulation).
-2. Record 30 s of the hand resting completely still, then 30 s of the pencil being
-   twiddled with the hand turned over.
+2. Record 30 s of the hand resting completely still.
 3. Set `stall_articulation` between the resting hand and writing.
-4. Set `twiddle_articulation` between a still upturned hand and a twiddling one.
-5. Adjust `stop_seconds` to whatever counts as "too long" for your setting.
-6. For hand position: after calibrating, watch the `+N vs the demonstrated grip`
+4. Adjust `stop_seconds` to whatever counts as "too long" for your setting.
+5. For hand position: after calibrating, watch the `+N vs the demonstrated grip`
    figure on the overlay while the child writes properly, then while they let the hand
    go flat. Put `flat_tolerance_deg` between the two. On synthetic traces those peak at
    +8 deg and +30 deg against a default limit of +20.
@@ -288,12 +283,9 @@ CI runs the tests on Python 3.10-3.12. The detector has no OpenCV or MediaPipe d
 - **NumPy 1.x/2.x error on import:** `pip install "numpy<2"`.
 - **Phone camera not listed:** start the phone app first, then run `--list`; try indexes 1-3, or use the stream URL.
 - **Hand flickers or is lost:** raise the phone, light the desk evenly, and make sure the whole hand is in frame.
-- **Everything reads as twiddling:** the fingers are jittering in the landmarks. Improve
-  the lighting and framing first, then lower `pose_smoothing` or raise `joint_noise`.
-- **Twiddling is never caught:** check the `palm` readout on the overlay. If it says
-  `down` while the hand is clearly turned over, the tracker is reporting the wrong
-  handedness — don't mirror the camera image, MediaPipe assumes it isn't. If the palm
-  reads `UP` correctly, lower `twiddle_articulation`.
+- **Palm reads the wrong way round:** the overlay says `palm down` while the hand is
+  clearly turned over, or the other way about. The tracker is reporting the wrong
+  handedness — don't mirror the camera image, MediaPipe assumes it isn't mirrored.
 - **"Calibration failed: the hand kept changing shape":** hold the grip still for the
   full three seconds, or raise `calibrate_max_wobble_deg`.
 - **WRONG POSITION never clears:** the grip was recorded on a much more tightly curled
@@ -306,7 +298,7 @@ CI runs the tests on Python 3.10-3.12. The detector has no OpenCV or MediaPipe d
 
 - One hand, one child, one camera. Hand detection can drop out when fingers are heavily
   occluded, and articulation is only as good as the landmarks: if the fingers aren't
-  clearly visible, the stall and twiddle signals degrade.
+  clearly visible, the stall signal degrades.
 - Tuned for right-handed writers filmed from the left; thresholds are not yet validated on real footage.
 - Joint angles are measured on the 2D projection, so a finger pointing towards the
   camera reads as more bent than it is. Calibrate from the same viewpoint you film from.

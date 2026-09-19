@@ -11,7 +11,7 @@ import pytest
 
 from struggle_vision import (Config, PostureReference, StruggleDetector, load_calibration,
                              save_calibration)
-from struggle_vision.detector import joint_angles, palm_towards_camera
+from struggle_vision.detector import joint_angles, palm_facing_away
 
 HS = 100.0
 FPS = 30
@@ -62,11 +62,11 @@ def mirror(pts):
 
 
 # build_hand lays out a right hand with the palm towards the camera. Writing is
-# filmed from the back of the hand, so that's the mirror image; turning the hand
-# over to play with the pencil is the un-mirrored one.
+# filmed from the back of the hand, so that's the mirror image; the hand turned
+# over off the page is the un-mirrored one.
 TEMPLATE = mirror(build_hand(WRITING_BENDS))    # holding a pencil, back of hand to camera
 FLAT = mirror(build_hand(FLAT_BENDS))           # collapsed flat onto the page
-PALM_UP = build_hand(WRITING_BENDS)             # same grip, hand turned over
+PALM_AWAY = build_hand(WRITING_BENDS)           # same grip, hand turned over
 # joints that curl when the fingers move: the two outermost of each finger
 CURLING = [3, 4, 7, 8, 11, 12, 15, 16, 19, 20]
 
@@ -138,19 +138,27 @@ def peak(out, attr, after=0.0):
 # ---------- stopped ----------
 
 def test_still_hand_is_flagged_only_after_stop_seconds():
-    out = run(lambda t: (400, 300), 8)
+    stop = Config().stop_seconds
+    out = run(lambda t: (400, 300), stop + 4)
     t = first(out, "stopped")
-    assert t is not None and 4.5 <= t <= 5.5
+    assert t is not None and stop - 0.5 <= t <= stop + 0.5
 
 
 def test_brief_pause_is_not_flagged():
-    out = run(lambda t: (400, 300) if t < 3 else (400 + 60 * (t - 3), 300), 8)
+    """A pause shorter than stop_seconds, then the hand moves off again.
+    Pinned to its own stop_seconds so it keeps testing the mechanism whatever
+    the shipped default is tuned to."""
+    cfg = Config(stop_seconds=5.0)
+    out = run(lambda t: (400, 300) if t < 3 else (400 + 60 * (t - 3), 300), 8, cfg=cfg)
     assert first(out, "stopped") is None
 
 
 def test_parked_hand_with_busy_fingers_is_not_stalled():
-    """Hand in one spot but fingers still working: not a stall."""
-    out = run(lambda t: (400, 300), 10, curl=lambda t: 0.12 * math.sin(2 * math.pi * 3.0 * t))
+    """Hand in one spot but fingers still working: not a stall. Uses an explicit
+    stall_articulation, since the shipped default may be tuned wide open."""
+    cfg = Config(stall_articulation=0.04)
+    out = run(lambda t: (400, 300), cfg.stop_seconds + 5, cfg=cfg,
+              curl=lambda t: 0.12 * math.sin(2 * math.pi * 3.0 * t))
     assert first(out, "stopped") is None
 
 
@@ -161,44 +169,36 @@ def test_normal_writing_is_not_flagged(amp, freq):
         return (300 + 20 * freq * t + amp * math.sin(2 * math.pi * freq * t),
                 300 + amp * math.cos(2 * math.pi * 1.7 * t))
     out = run(path, 10, curl=lambda t: 0.04 * math.sin(2 * math.pi * 2.0 * t))
-    assert not any(s.stopped or s.twiddling for _, s in out)
+    assert not any(s.stopped or s.palm_facing_away for _, s in out)
 
 
-# ---------- twiddling ----------
+# ---------- palm facing away ----------
 
-def test_palm_towards_camera_tells_the_two_sides_apart():
-    assert palm_towards_camera(PALM_UP * HS, "Right")
-    assert not palm_towards_camera(TEMPLATE * HS, "Right")
+def test_palm_facing_away_tells_the_two_sides_apart():
+    assert palm_facing_away(PALM_AWAY * HS, "Right")
+    assert not palm_facing_away(TEMPLATE * HS, "Right")
     # a left hand is the mirror image, so the answers swap over
-    assert not palm_towards_camera(PALM_UP * HS, "Left")
-    assert palm_towards_camera(TEMPLATE * HS, "Left")
+    assert not palm_facing_away(PALM_AWAY * HS, "Left")
+    assert palm_facing_away(TEMPLATE * HS, "Left")
 
 
-def test_hand_turned_over_with_busy_fingers_is_twiddling():
-    out = run(lambda t: (400, 300), 8, template=PALM_UP,
+def test_hand_turned_over_is_the_wrong_position():
+    out = run(lambda t: (400, 300), 4, template=PALM_AWAY)
+    assert all(s.palm_facing_away and s.struggling for t, s in out if s.hand_visible)
+    assert "WRONG POSITION" in out[-1][1].reasons
+
+
+def test_writing_normally_never_reads_as_palm_facing_away():
+    """Finger motion must not enter into it: only which way the hand faces."""
+    out = run(lambda t: (300 + 60 * t, 300), 8,
               curl=lambda t: 0.12 * math.sin(2 * math.pi * 3.0 * t))
-    assert first(out, "twiddling") is not None
+    assert not any(s.palm_facing_away for _, s in out)
 
 
-def test_busy_fingers_palm_down_is_not_twiddling():
-    """The same finger motion while writing normally: not twiddling."""
-    out = run(lambda t: (400, 300), 8,
-              curl=lambda t: 0.12 * math.sin(2 * math.pi * 3.0 * t))
-    assert first(out, "twiddling") is None
-    assert not any(s.palm_up for _, s in out)
-
-
-def test_hand_turned_over_but_still_is_not_twiddling():
-    """Resting an upturned hand isn't playing with the pencil."""
-    out = run(lambda t: (400, 300), 8, template=PALM_UP)
-    assert first(out, "twiddling") is None
-    assert all(s.palm_up for t, s in out if s.hand_visible)
-
-
-def test_a_brief_flip_is_not_twiddling():
-    det = StruggleDetector()
-    t = feed(det, 4.0, template=PALM_UP)          # busy hand needs finger motion first
-    assert not det.evaluate(t).twiddling
+def test_losing_the_hand_clears_palm_facing_away():
+    out = run(lambda t: (400, 300), 10, template=PALM_AWAY, gap=(2, 10))
+    assert not out[-1][1].palm_facing_away
+    assert not out[-1][1].struggling
 
 
 # ---------- articulation ----------
@@ -217,13 +217,14 @@ def test_still_hand_reads_near_zero_articulation():
 # ---------- hand lost ----------
 
 def test_losing_the_hand_is_not_struggling():
-    out = run(lambda t: (400, 300), 12, gap=(1, 12))
+    out = run(lambda t: (400, 300), 12, gap=(0, 12))
     assert not any(s.struggling for _, s in out)
     assert not out[-1][1].hand_visible
 
 
 def test_hand_returning_after_a_gap_restarts_the_clock():
-    out = run(lambda t: (400, 300), 14, gap=(2, 6))
+    cfg = Config(stop_seconds=5.0)
+    out = run(lambda t: (400, 300), 14, cfg=cfg, gap=(2, 6))
     t = first(out, "stopped")
     assert t is not None and t > 6 + 4.5
 
@@ -232,9 +233,10 @@ def test_hand_returning_after_a_gap_restarts_the_clock():
 
 def test_bare_grip_point_still_works():
     """Callers with their own tracker can feed a single point plus a hand size."""
-    out = run(lambda t: (400, 300), 8, landmarks=False)
+    stop = Config().stop_seconds
+    out = run(lambda t: (400, 300), stop + 4, landmarks=False)
     t = first(out, "stopped")
-    assert t is not None and 4.5 <= t <= 5.5
+    assert t is not None and stop - 0.5 <= t <= stop + 0.5
     assert all(s.articulation == 0.0 for _, s in out)
 
 
