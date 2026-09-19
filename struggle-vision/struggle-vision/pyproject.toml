@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "struggle-vision"
+version = "0.1.0"
+description = "Camera-based detection of when a child is struggling while writing (MediaPipe + OpenCV)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "numpy",
+    "opencv-python>=4.8",
+    "mediapipe>=0.10.14",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.scripts]
+struggle-vision = "struggle_vision.cli:main"
+
+[tool.setuptools]
+packages = ["struggle_vision"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

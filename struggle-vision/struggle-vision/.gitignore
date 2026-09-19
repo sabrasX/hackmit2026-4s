@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.venv/
+venv/
+
+# Session output and test footage (may contain video of children: never commit)
+logs/
+session_*.csv
+*.mp4
+*.avi
+*.mov
+*.mkv
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Downloaded MediaPipe model
+models/
+*.task
