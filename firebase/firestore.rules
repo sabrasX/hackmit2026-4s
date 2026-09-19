@@ -1,0 +1,11 @@
+rules_version = '2';
+// TODO: lock down - students read/write only their own users and sessions docs
+// Collections: users {name}, sessions {studentId, words[], overallScore}
+// Deploy: firebase deploy --only firestore:rules
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
