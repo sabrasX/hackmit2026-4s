@@ -1,20 +1,8 @@
 @import "tailwindcss";
 
-/* Drop LemonSlice.ttf or LemonSlice.woff2 into public/fonts/ to use the real font */
-@font-face {
-  font-family: "Lemon Slice";
-  src:
-    url("/fonts/LemonSlice.woff2") format("woff2"),
-    url("/fonts/LemonSlice.woff") format("woff"),
-    url("/fonts/LemonSlice.ttf") format("truetype");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
 @theme {
-  --font-sans: "Lemon Slice", "Chewy", cursive, system-ui, sans-serif;
-  --font-display: "Lemon Slice", "Chewy", cursive, system-ui, sans-serif;
+  --font-sans: "Nunito", system-ui, sans-serif;
+  --font-display: "Fredoka", "Nunito", system-ui, sans-serif;
 
   --color-cream: #fff9e8;
   --color-cream-dark: #f5edd8;

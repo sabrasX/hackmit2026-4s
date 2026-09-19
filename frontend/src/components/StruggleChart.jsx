@@ -24,27 +24,27 @@ export default function StruggleChart({ words = [] }) {
         <BarChart data={data} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
           <XAxis
             dataKey="name"
-            tick={{ fontFamily: '"Lemon Slice", Chewy, cursive', fontSize: 14, fill: '#64748b' }}
+            tick={{ fontFamily: 'Nunito', fontSize: 14, fill: '#64748b' }}
             axisLine={false}
             tickLine={false}
           />
           <YAxis
             domain={[0, 100]}
-            tick={{ fontFamily: '"Lemon Slice", Chewy, cursive', fontSize: 12, fill: '#94a3b8' }}
+            tick={{ fontFamily: 'Nunito', fontSize: 12, fill: '#94a3b8' }}
             axisLine={false}
             tickLine={false}
             label={{
               value: 'Struggle score',
               angle: -90,
               position: 'insideLeft',
-              style: { fontFamily: '"Lemon Slice", Chewy, cursive', fill: '#94a3b8', fontSize: 12 },
+              style: { fontFamily: 'Nunito', fill: '#94a3b8', fontSize: 12 },
             }}
           />
           <Tooltip
             contentStyle={{
               borderRadius: '1rem',
               border: '2px solid #b8c9df',
-              fontFamily: '"Lemon Slice", Chewy, cursive',
+              fontFamily: 'Nunito',
             }}
             formatter={(value) => [`${value}`, 'Score']}
           />
