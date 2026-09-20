@@ -25,7 +25,7 @@ export default function PastSessions({ sessions }) {
       <section className="mt-10">
         <h2 className="font-display mb-4 text-2xl font-bold text-sky-700">Your practice history</h2>
         <div className="card-doodle p-6 text-center">
-          <span className="text-4xl" aria-hidden="true">🌱</span>
+          <img src="/rabbit.png" alt="" className="mx-auto h-24 w-24 object-contain" />
           <p className="mt-3 text-slate-500">
             No sessions yet - finish a writing session and it will show up here!
           </p>

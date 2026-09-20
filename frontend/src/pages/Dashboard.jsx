@@ -30,11 +30,14 @@ export default function Dashboard() {
     <DoodleBackground>
       <main className="mx-auto max-w-3xl px-6 py-10">
         <header className="mb-10 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h1 className="font-display text-4xl font-bold text-sky-700 sm:text-5xl">
-              Hi {user?.name}! 👋
-            </h1>
-            <p className="mt-2 text-lg text-slate-500">What would you like to practice today?</p>
+          <div className="flex items-center gap-4">
+            <img src="/rabbit.png" alt="" className="h-24 w-24 shrink-0 object-contain animate-bounce-gentle" />
+            <div>
+              <h1 className="font-display text-4xl font-bold text-sky-700 sm:text-5xl">
+                Hi {user?.name}! 👋
+              </h1>
+              <p className="mt-2 text-lg text-slate-500">What would you like to practice today?</p>
+            </div>
           </div>
           <button type="button" onClick={logout} className="btn-secondary text-base">
             Log Out
@@ -44,7 +47,7 @@ export default function Dashboard() {
         <div className="grid gap-6 sm:grid-cols-1">
           <ActivityCard
             title="Start Writing Session"
-            icon="📝"
+            icon={<img src="/pencil.png" alt="" className="h-16 w-auto" />}
             description="Practice writing words with a little help when you need it"
             onClick={() => navigate('/write')}
           />
@@ -56,7 +59,7 @@ export default function Dashboard() {
           />
           <ActivityCard
             title="Tracing"
-            icon="✍️"
+            icon={<img src="/pencil.png" alt="" className="h-16 w-auto -rotate-12" />}
             description="Trace letters and shapes"
             disabled
           />

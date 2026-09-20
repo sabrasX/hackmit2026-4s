@@ -58,7 +58,7 @@ export default function Results() {
       <main className="mx-auto max-w-4xl px-6 py-10">
         <div className="card-doodle p-8 sm:p-10">
           <div className="text-center">
-            <span className="text-6xl" aria-hidden="true">🏆</span>
+            <img src="/trophy.png" alt="" className="mx-auto h-32 w-auto" />
             <h1 className="font-display mt-4 text-4xl font-bold text-sky-700">Session Complete!</h1>
             <p className="mt-3 text-xl text-slate-600">{message}</p>
           </div>
