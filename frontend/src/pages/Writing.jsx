@@ -10,6 +10,7 @@ import { useAuth } from '../hooks/useAuth.jsx'
 import { createScorer, paceFromSessions } from '../lib/scoring.js'
 import { speak } from '../lib/speech.js'
 import { saveSession, getSessions, getLesson } from '../lib/firebase.js'
+import { fetchSensorSamples } from '../lib/heartMonitor.js'
 import { DEFAULT_LESSON } from '../config.js'
 
 const STEPS = { intro: 'intro', writing: 'writing', done: 'done' }
@@ -19,6 +20,7 @@ export default function Writing() {
   const { user } = useAuth()
   const { status, connected, send } = useVisionStream()
   const scorerRef = useRef(createScorer())
+  const sessionStartRef = useRef(0)
   const [step, setStep] = useState(STEPS.intro)
   const [wordIndex, setWordIndex] = useState(0)
   const [supportLevel, setSupportLevel] = useState(0)
@@ -79,14 +81,24 @@ export default function Writing() {
       setStep(STEPS.done)
       const scored = scorerRef.current.getWords()
       const overallScore = scorerRef.current.overall()
-      sessionStorage.setItem(
-        'lastSession',
-        JSON.stringify({ words: scored, overallScore, sentence: lesson.sentence }),
-      )
+      const startUnix = sessionStartRef.current
+      const endUnix = Date.now() / 1000
+      const store = (sensorSamples) =>
+        sessionStorage.setItem(
+          'lastSession',
+          JSON.stringify({ words: scored, overallScore, sentence: lesson.sentence, sensorSamples }),
+        )
+      store([])
       if (user?.uid) {
         saveSession(user.uid, { words: scored, overallScore }).catch(() => {})
       }
-      setTimeout(() => navigate('/results'), 800)
+      Promise.all([
+        fetchSensorSamples(startUnix, endUnix),
+        new Promise((r) => setTimeout(r, 800)),
+      ]).then(([sensorSamples]) => {
+        store(sensorSamples)
+        navigate('/results')
+      })
       return
     }
 
@@ -102,6 +114,7 @@ export default function Writing() {
     setWordIndex(0)
     setSupportLevel(0)
     setStep(STEPS.writing)
+    sessionStartRef.current = Date.now() / 1000
     scorerRef.current.startWord(words[0].word)
     send({ type: 'reset' })
     speak(words[0].word)
