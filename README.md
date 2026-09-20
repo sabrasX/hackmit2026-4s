@@ -7,9 +7,9 @@ support only when needed.
 
 | Folder | Owner | What lives there |
 | --- | --- | --- |
-| `struggle-vision/struggle-vision/` | Saba | Python vision: phone camera -> MediaPipe -> stopped/fidget detector (will move to `vision/`) |
-| `frontend/` | Frontend teammate + Sahith | React + Vite + Tailwind web app (pages, components, Firebase, scoring) |
-| `firebase/` | Sahith | Firestore security rules |
+| `struggle-vision/struggle-vision/` Python vision: phone camera -> MediaPipe -> stopped/fidget detector (will move to `vision/`) |
+| `frontend/` React + Vite + Tailwind web app (pages, components, Firebase, scoring) |
+| `firebase/` Firestore security rules |
 
 ## How the parts connect
 
