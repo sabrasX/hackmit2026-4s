@@ -19,6 +19,16 @@ function saveDemoUser(user) {
   else localStorage.removeItem(DEMO_KEY)
 }
 
+// Firebase's own error messages are written for developers, not kids or
+// parents at a demo table - map the common ones to something friendlier.
+const FRIENDLY_LOGIN_ERRORS = {
+  'auth/invalid-email': "That username doesn't look right.",
+  'auth/user-not-found': "We couldn't find that account.",
+  'auth/wrong-password': 'That password is not quite right.',
+  'auth/invalid-credential': "That username or password isn't right.",
+  'auth/too-many-requests': 'Too many tries - please wait a moment and try again.',
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
