@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 
 /** A demonstration of the current word being written, shown when the struggle
- *  score stays high. It sits in the page corner, clear of the word at the top
- *  and the tick at the bottom centre, and the tick closes it by moving on.
+ *  score stays high. On a narrow screen it sits in the page flow between the
+ *  word and the tick; on a wide one it floats beside them. Either way it never
+ *  covers the word or the tick, and the tick closes it by moving on.
  *
  *  A video at /videos/<word>.mp4 is used when one has been added; otherwise a
  *  grown-up can pick a clip from the device for this word.
@@ -26,7 +27,7 @@ export default function ReferenceVideoPopup({ word, src, onPick, onClose }) {
 
   return (
     <aside
-      className="card-doodle fixed right-4 bottom-4 z-40 w-56 p-3 shadow-xl sm:w-64 lg:top-1/2 lg:right-6 lg:bottom-auto lg:-translate-y-1/2"
+      className="card-doodle z-40 mx-auto w-full max-w-xs p-3 shadow-xl lg:fixed lg:top-1/2 lg:right-6 lg:mx-0 lg:w-64 lg:-translate-y-1/2"
       role="dialog"
       aria-label={`How to write ${word}`}
     >
@@ -43,17 +44,23 @@ export default function ReferenceVideoPopup({ word, src, onPick, onClose }) {
       </div>
 
       {src && !unavailable ? (
-        <video
-          ref={videoRef}
-          src={src}
-          className="w-full rounded-xl bg-slate-100"
-          autoPlay
-          loop
-          muted
-          playsInline
-          controls
-          onError={() => setUnavailable(true)}
-        />
+        <>
+          <video
+            ref={videoRef}
+            src={src}
+            className="w-full rounded-xl bg-slate-100"
+            autoPlay
+            loop
+            muted
+            playsInline
+            controls
+            onError={() => setUnavailable(true)}
+          />
+          <label className="mt-2 block cursor-pointer text-center text-xs font-semibold text-sky-600 hover:underline">
+            Choose a different video
+            <input type="file" accept="video/*" className="hidden" onChange={handleFile} />
+          </label>
+        </>
       ) : (
         <div className="rounded-xl bg-slate-50 p-3 text-center text-xs text-slate-500">
           <p>No video for this word yet.</p>

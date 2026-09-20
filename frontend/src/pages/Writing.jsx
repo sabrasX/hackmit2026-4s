@@ -190,11 +190,6 @@ export default function Writing() {
 
             <SupportBanner level={supportLevel} word={currentWord} />
 
-            <div className="mt-auto flex flex-col items-center gap-4 pb-8">
-              <p className="text-slate-500">Tap the check when you finish this word</p>
-              <TickButton onClick={finishWord} />
-            </div>
-
             {showVideo && (
               <ReferenceVideoPopup
                 word={currentWord}
@@ -203,6 +198,11 @@ export default function Writing() {
                 onClose={() => setVideoDismissed(true)}
               />
             )}
+
+            <div className="mt-auto flex flex-col items-center gap-4 pb-8">
+              <p className="text-slate-500">Tap the check when you finish this word</p>
+              <TickButton onClick={finishWord} />
+            </div>
           </div>
         )}
 
