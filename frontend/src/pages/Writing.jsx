@@ -32,6 +32,8 @@ export default function Writing() {
   const [videoDismissed, setVideoDismissed] = useState(false)
   const [videos, setVideos] = useState({})
 
+  const objectUrls = useRef([])
+
   const currentWord = WORDS[wordIndex]
   const showVideo = supportLevel >= VIDEO_SUPPORT_LEVEL && !videoDismissed
 
@@ -43,6 +45,24 @@ export default function Writing() {
     setSupportLevel(scorerRef.current.supportLevel())
     setLiveScore(scorerRef.current.rollingScore())
   }, [status, step])
+
+  // Object URLs for picked videos are owned here: the browser keeps each blob
+  // alive until it is revoked.
+  const pickVideo = useCallback((word, src) => {
+    objectUrls.current.push(src)
+    setVideos((prev) => {
+      if (prev[word]) URL.revokeObjectURL(prev[word])
+      return { ...prev, [word]: src }
+    })
+  }, [])
+
+  useEffect(
+    () => () => {
+      objectUrls.current.forEach((src) => URL.revokeObjectURL(src))
+      objectUrls.current = []
+    },
+    [],
+  )
 
   useEffect(() => {
     if (step !== STEPS.calibrating) return
@@ -179,7 +199,7 @@ export default function Writing() {
               <ReferenceVideoPopup
                 word={currentWord}
                 src={videos[currentWord] || defaultVideoSrc(currentWord)}
-                onPick={(word, src) => setVideos((prev) => ({ ...prev, [word]: src }))}
+                onPick={pickVideo}
                 onClose={() => setVideoDismissed(true)}
               />
             )}

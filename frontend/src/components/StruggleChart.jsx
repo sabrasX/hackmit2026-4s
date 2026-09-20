@@ -1,5 +1,8 @@
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
-import { WEIGHTS } from '../config.js'
+import { WEIGHTS, SUPPORT_LEVELS } from '../config.js'
+
+const SOME_STRUGGLE = SUPPORT_LEVELS[0].minScore
+const NEEDS_SUPPORT = SUPPORT_LEVELS[SUPPORT_LEVELS.length - 1].minScore
 
 const PART_LABELS = {
   stopped: 'pen stopped',
@@ -9,8 +12,8 @@ const PART_LABELS = {
 }
 
 function barColor(score) {
-  if (score < 40) return '#6bcb77'
-  if (score <= 70) return '#fadbb6'
+  if (score < SOME_STRUGGLE) return '#6bcb77'
+  if (score < NEEDS_SUPPORT) return '#fadbb6'
   return '#ff85a2'
 }
 

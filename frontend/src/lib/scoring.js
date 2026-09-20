@@ -120,7 +120,9 @@ export function createScorer() {
     },
 
     rollingScore() {
-      return Math.round(mean(scoreHistory.map((e) => e.score)))
+      // Baseline-discounted like the finished-word score, so a naturally
+      // restless hand doesn't trigger support while writing normally.
+      return Math.round(Math.max(0, mean(scoreHistory.map((e) => e.score)) - 0.5 * baseline))
     },
 
     supportLevel() {

@@ -5,10 +5,12 @@ import DoodleBackground from '../components/DoodleBackground.jsx'
 import StruggleChart from '../components/StruggleChart.jsx'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { loadLastSession } from '../lib/sessionStore.js'
+import { SUPPORT_LEVELS } from '../config.js'
 
+// Star bands follow the support thresholds: no support needed, some, a lot.
 function scoreToStars(overall) {
-  if (overall < 35) return 3
-  if (overall < 60) return 2
+  if (overall < SUPPORT_LEVELS[0].minScore) return 3
+  if (overall < SUPPORT_LEVELS[SUPPORT_LEVELS.length - 1].minScore) return 2
   return 1
 }
 
