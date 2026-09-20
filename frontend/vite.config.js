@@ -17,17 +17,28 @@ function adbPull() {
   })
 }
 
-function latestExport() {
+// { filename -> contents } of every export currently on disk.
+function readExports() {
+  const out = new Map()
   let files
   try {
     files = readdirSync(EXPORTS_DIR).filter((f) => /^session_.*\.json$/.test(f))
   } catch {
-    return null
+    return out
   }
-  if (!files.length) return null
-  // Filenames embed the session's UTC start (session_YYYYMMDD_HHMMSS_mode.json).
-  files.sort((a, b) => b.localeCompare(a))
-  return readFileSync(join(EXPORTS_DIR, files[0]), 'utf8')
+  for (const f of files) out.set(f, readFileSync(join(EXPORTS_DIR, f), 'utf8'))
+  return out
+}
+
+// The running monitor is the only thing still rewriting its file, so a file the
+// pull changed/added is the current session regardless of the board's clock.
+// Otherwise fall back to the timestamped filename (session_YYYYMMDD_HHMMSS_mode.json).
+function latestExport(before, after) {
+  const changed = [...after.keys()].filter((f) => before.get(f) !== after.get(f))
+  const pool = changed.length ? changed : [...after.keys()]
+  if (!pool.length) return null
+  pool.sort((a, b) => b.localeCompare(a))
+  return after.get(pool[0])
 }
 
 // GET /api/heart-session -> newest Arduino stress-checker export (dev server only).
@@ -39,8 +50,9 @@ function heartMonitorBridge() {
     name: 'heart-monitor-bridge',
     configureServer(server) {
       server.middlewares.use('/api/heart-session', async (_req, res) => {
+        const before = readExports()
         const live = await adbPull()
-        const body = latestExport()
+        const body = latestExport(before, readExports())
         res.setHeader('Content-Type', 'application/json')
         res.setHeader('Cache-Control', 'no-store')
         res.setHeader('X-Heart-Source', live ? 'live' : 'cache')
