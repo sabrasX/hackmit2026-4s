@@ -1,4 +1,7 @@
 numpy
 opencv-python>=4.8
-mediapipe>=0.10.14
+# Capped below 1.0: the 1.0.x macOS builds abort on startup inside MediaPipe's
+# Metal helper ("Check failed: service_ Service is unavailable") when the hand
+# landmarker graph opens. 0.10.x works on macOS and Windows alike.
+mediapipe>=0.10.14,<1.0
 websockets>=12

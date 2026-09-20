@@ -4,24 +4,6 @@ import confetti from 'canvas-confetti'
 import DoodleBackground from '../components/DoodleBackground.jsx'
 import StruggleChart from '../components/StruggleChart.jsx'
 
-function scoreToStars(overall) {
-  if (overall < 35) return 3
-  if (overall < 60) return 2
-  return 1
-}
-
-function StarRating({ count }) {
-  return (
-    <div className="flex justify-center gap-2 text-5xl" aria-label={`${count} out of 3 stars`}>
-      {[1, 2, 3].map((i) => (
-        <span key={i} className={i <= count ? 'animate-bounce-gentle' : 'opacity-25'} aria-hidden="true">
-          ⭐
-        </span>
-      ))}
-    </div>
-  )
-}
-
 export default function Results() {
   const navigate = useNavigate()
 
@@ -34,11 +16,11 @@ export default function Results() {
     }
   }, [])
 
-  const stars = session ? scoreToStars(session.overallScore) : 0
+  const score = session?.overallScore ?? 100
   const message =
-    stars >= 3
+    score < 35
       ? 'Amazing work! You stayed calm the whole time!'
-      : stars >= 2
+      : score < 60
         ? 'Nice job! You did really well!'
         : 'Good effort! Practice makes perfect!'
 
@@ -66,7 +48,7 @@ export default function Results() {
 
   return (
     <DoodleBackground>
-      <main className="mx-auto max-w-2xl px-6 py-10">
+      <main className="mx-auto max-w-4xl px-6 py-10">
         <div className="card-doodle p-8 sm:p-10">
           <div className="text-center">
             <span className="text-6xl" aria-hidden="true">🏆</span>
@@ -74,16 +56,21 @@ export default function Results() {
             <p className="mt-3 text-xl text-slate-600">{message}</p>
           </div>
 
-          <div className="my-8">
-            <StarRating count={stars} />
-            <p className="mt-3 text-center text-sm text-slate-400">
-              More stars = less struggle detected
-            </p>
-          </div>
-
-          <div className="mb-8">
+          <div className="mb-8 mt-8">
             <h2 className="font-display mb-4 text-xl font-bold text-sky-700">Your words</h2>
-            <StruggleChart words={session.words} />
+            <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
+              <div className="min-w-0 flex-1">
+                <StruggleChart words={session.words} />
+              </div>
+              <div className="card-doodle shrink-0 px-6 py-5 text-center sm:w-44">
+                <p className="text-sm font-semibold text-slate-500">Total struggle score</p>
+                <p className="font-display mt-2 text-5xl font-bold text-sky-700">
+                  {session.overallScore}
+                </p>
+                <p className="mt-1 text-sm text-slate-400">out of 100</p>
+                <p className="mt-3 text-xs text-slate-400">Lower is better</p>
+              </div>
+            </div>
           </div>
 
           <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">

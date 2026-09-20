@@ -10,6 +10,7 @@ Run it with:  python -m struggle_vision.server --source 0
 
 import argparse
 import asyncio
+import base64
 import json
 import queue
 import threading
@@ -64,13 +65,20 @@ class VisionWorker(threading.Thread):
 
     daemon = True
 
-    def __init__(self, cfg, source, model=None, calibration=None, show=False):
+    def __init__(self, cfg, source, model=None, calibration=None, show=False,
+                 video=False, video_width=320, video_quality=55):
         super().__init__(name="vision")
         self.cfg = cfg
         self.source = source
         self.model = model
         self.calibration = Path(calibration) if calibration else None
         self.show = show
+        # When video is on, each status also carries the analysed frame (with the
+        # landmarks drawn on it) as a base64 JPEG, so the web UI can show exactly
+        # what the detector is looking at instead of opening the camera itself.
+        self.video = video
+        self.video_width = video_width
+        self.video_quality = video_quality
         self._latest = None
         self._lock = threading.Lock()
         self._commands = queue.Queue()
@@ -109,6 +117,16 @@ class VisionWorker(threading.Thread):
             else:
                 print(f"Ignoring unknown command: {command!r}")
 
+    def _encode_frame(self, cv2, frame):
+        """The analysed frame as a base64 JPEG data URL, small enough to stream."""
+        width = min(self.video_width, frame.shape[1])
+        preview = cv2.resize(frame, (width, int(frame.shape[0] * width / frame.shape[1])))
+        ok, buf = cv2.imencode(".jpg", preview,
+                               [int(cv2.IMWRITE_JPEG_QUALITY), self.video_quality])
+        if not ok:
+            return None
+        return "data:image/jpeg;base64," + base64.b64encode(buf).decode("ascii")
+
     def _save_if_calibrated(self, det, was_calibrating):
         if not (was_calibrating and not det.calibrating):
             return
@@ -142,13 +160,21 @@ class VisionWorker(threading.Thread):
 
         t0 = time.monotonic()
         was_calibrating = False
+        # A Continuity Camera iPhone takes a couple of seconds to wake up and
+        # hands back empty reads until it does, so don't give up on the first one.
+        warmup_reads_left = 50
         try:
             while not self._stop.is_set():
                 ok, frame = cap.read()
                 if not ok:
+                    if warmup_reads_left > 0:
+                        warmup_reads_left -= 1
+                        time.sleep(0.1)
+                        continue
                     self.error = "The camera stopped returning frames."
                     print(self.error)
                     break
+                warmup_reads_left = 0
                 t = time.monotonic() - t0
 
                 scale = self.cfg.frame_width / frame.shape[1]
@@ -157,7 +183,7 @@ class VisionWorker(threading.Thread):
                 pts, side = tracker.detect(frame, t)
                 if pts is not None:
                     det.update_hand(t, pts, handedness=side)
-                    if self.show:
+                    if self.show or self.video:
                         draw_hand(frame, pts)
                 det.check_hand_lost(t)
 
@@ -165,18 +191,33 @@ class VisionWorker(threading.Thread):
                 self._save_if_calibrated(det, was_calibrating)
                 was_calibrating = det.calibrating
 
+                payload = status_payload(t, det.evaluate(t), det)
+                if self.video:
+                    payload["frame"] = self._encode_frame(cv2, frame)
                 with self._lock:
-                    self._latest = status_payload(t, det.evaluate(t), det)
+                    self._latest = payload
 
                 if self.show:
-                    cv2.imshow("struggle-vision (server)", frame)
-                    if (cv2.waitKey(1) & 0xFF) == ord("q"):
-                        break
+                    try:
+                        cv2.imshow("struggle-vision (server)", frame)
+                        if (cv2.waitKey(1) & 0xFF) == ord("q"):
+                            break
+                    except cv2.error as exc:
+                        # macOS only allows GUI windows on the main thread, and
+                        # the camera loop is not it. Losing the local preview is
+                        # no reason to take the whole stream down - --video
+                        # shows the same frames in the browser anyway.
+                        self.show = False
+                        print(f"Local preview unavailable on this platform ({exc}).\n"
+                              "Carrying on without it - use --video to watch in the web UI.")
         finally:
             cap.release()
             tracker.close()
             if self.show:
-                cv2.destroyAllWindows()
+                try:
+                    cv2.destroyAllWindows()
+                except cv2.error:
+                    pass
 
 
 async def serve(worker: VisionWorker, host: str, port: int, hz: float):
@@ -229,6 +270,12 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--no-calibration", action="store_true",
                     help="ignore any saved calibration and don't check hand position")
     ap.add_argument("--show", action="store_true", help="also open a local preview window")
+    ap.add_argument("--video", action="store_true",
+                    help="stream the analysed frames (with landmarks) to the web UI")
+    ap.add_argument("--video-width", type=int, default=320,
+                    help="width of the streamed preview in pixels (default: 320)")
+    ap.add_argument("--video-quality", type=int, default=55,
+                    help="JPEG quality of the streamed preview, 1-100 (default: 55)")
     group = ap.add_argument_group("detector settings (defaults live in config.py)")
     for f in fields(Config):
         group.add_argument("--" + f.name.replace("_", "-"), dest=f.name, type=f.type, default=None,
@@ -247,7 +294,8 @@ def main(argv=None):
     source = int(args.source) if args.source.isdigit() else args.source
 
     worker = VisionWorker(cfg, source, args.model,
-                          None if args.no_calibration else args.calibration, args.show)
+                          None if args.no_calibration else args.calibration, args.show,
+                          args.video, args.video_width, args.video_quality)
     worker.start()
     try:
         asyncio.run(serve(worker, args.host, args.port, args.hz))

@@ -1,61 +1,103 @@
-import { WEIGHTS, ROLLING_WINDOW_S, SUPPORT_LEVELS } from '../config.js'
+import { WEIGHTS, ROLLING_WINDOW_S, SUPPORT_LEVELS, SECONDS_PER_LETTER } from '../config.js'
+
+// If the vision server sends its own struggle score we use that verbatim and
+// skip the weights below. Saba's server just has to put a `struggleScore`
+// number (0-100) in the JSON it already streams; anything else keeps working.
+function serverScoreOf(status) {
+  const raw = status.struggleScore
+  if (typeof raw !== 'number' || Number.isNaN(raw)) return null
+  return Math.max(0, Math.min(100, raw))
+}
 
 function extractMetrics(status) {
   const handMissing = status.handVisible === false ? 1 : 0
   const stopped = status.stopped ? 1 : 0
-  const fidget = status.fidget ? 1 : 0
-  return { stopped, fidget, handMissing, overtime: 0 }
+  return { stopped, handMissing, overtime: 0 }
 }
 
 function weightedSum(metrics) {
   return (
     WEIGHTS.stopped * metrics.stopped +
-    WEIGHTS.fidget * metrics.fidget +
     WEIGHTS.handMissing * metrics.handMissing +
     WEIGHTS.overtime * metrics.overtime
   )
 }
 
 function averageMetrics(samples) {
-  if (!samples.length) return { stopped: 0, fidget: 0, handMissing: 0, overtime: 0 }
+  if (!samples.length) return { stopped: 0, handMissing: 0, overtime: 0 }
   const sum = samples.reduce(
     (acc, s) => ({
       stopped: acc.stopped + s.stopped,
-      fidget: acc.fidget + s.fidget,
       handMissing: acc.handMissing + s.handMissing,
       overtime: acc.overtime + s.overtime,
     }),
-    { stopped: 0, fidget: 0, handMissing: 0, overtime: 0 },
+    { stopped: 0, handMissing: 0, overtime: 0 },
   )
   const n = samples.length
   return {
     stopped: sum.stopped / n,
-    fidget: sum.fidget / n,
     handMissing: sum.handMissing / n,
     overtime: sum.overtime / n,
   }
 }
 
-function computeScore(samples, baseline, wordStartTime) {
-  if (!samples.length) return 0
-
-  const avg = averageMetrics(samples)
-  const elapsed = (samples[samples.length - 1].t - wordStartTime) / 1000
-  const overtime = elapsed > 45 ? Math.min(1, (elapsed - 45) / 30) : 0
-  avg.overtime = overtime
-
-  const raw = weightedSum(avg)
-  const base = weightedSum(baseline)
-  const adjusted = Math.max(0, raw - base * 0.5)
-  return Math.round(100 * Math.min(1, adjusted))
+function letterCount(word) {
+  return (word ?? '').replace(/[^\p{L}\p{N}]/gu, '').length
 }
 
-export function createScorer() {
-  let baseline = { stopped: 0, fidget: 0, handMissing: 0, overtime: 0 }
-  let calibrating = false
-  let calibrationSamples = []
+/**
+ * This child's own seconds-per-letter, learned from their past sessions, so a
+ * naturally slow writer isn't scored as struggling just for writing slowly.
+ * Returns null when there isn't enough history to say, and the caller falls
+ * back to the SECONDS_PER_LETTER default.
+ *
+ * The median is deliberate: a couple of words where the child genuinely got
+ * stuck shouldn't drag their "normal pace" upwards and mask future struggling.
+ */
+export function paceFromSessions(sessions = []) {
+  const paces = []
+  for (const session of sessions) {
+    for (const w of session?.words ?? []) {
+      const letters = letterCount(w?.word)
+      // Older sessions predate per-word timing and have no `seconds`.
+      if (!letters || typeof w?.seconds !== 'number' || w.seconds <= 0) continue
+      paces.push(w.seconds / letters)
+    }
+  }
+  if (paces.length < 3) return null
+
+  paces.sort((a, b) => a - b)
+  const mid = Math.floor(paces.length / 2)
+  return paces.length % 2 ? paces[mid] : (paces[mid - 1] + paces[mid]) / 2
+}
+
+function computeScore(samples, wordStartTime, expectedSeconds) {
+  if (!samples.length) return 0
+
+  // The server's own score wins whenever it is sending one.
+  const fromServer = samples.map((s) => s.serverScore).filter((s) => s !== null)
+  if (fromServer.length) {
+    return Math.round(fromServer.reduce((a, b) => a + b, 0) / fromServer.length)
+  }
+
+  const avg = averageMetrics(samples)
+  // Overtime is measured against what this particular word should take, so a
+  // long word isn't penalised for simply having more letters in it. Taking
+  // twice the expected time maxes the term out.
+  const elapsed = (Date.now() - wordStartTime) / 1000
+  avg.overtime = expectedSeconds > 0
+    ? Math.max(0, Math.min(1, (elapsed - expectedSeconds) / expectedSeconds))
+    : 0
+
+  return Math.round(100 * Math.min(1, weightedSum(avg)))
+}
+
+export function createScorer({ secondsPerLetter } = {}) {
+  // The child's learned pace when we have one, the shared default otherwise.
+  const pace = secondsPerLetter > 0 ? secondsPerLetter : SECONDS_PER_LETTER
   let currentWord = null
   let wordStartTime = null
+  let expectedSeconds = 0
   let wordSamples = []
   let completedWords = []
   let scoreHistory = []
@@ -63,45 +105,38 @@ export function createScorer() {
   let currentLevel = 0
 
   return {
-    startCalibration() {
-      calibrating = true
-      calibrationSamples = []
-    },
-
-    endCalibration() {
-      calibrating = false
-      if (calibrationSamples.length) {
-        baseline = averageMetrics(calibrationSamples)
-      }
-    },
-
     startWord(word) {
       currentWord = word
       wordStartTime = Date.now()
+      // Letters only: punctuation shouldn't buy the child extra time.
+      expectedSeconds = letterCount(word) * pace
       wordSamples = []
+      scoreHistory = []
       levelHoldStart = null
       currentLevel = 0
     },
 
     addStatus(status) {
-      const sample = { ...extractMetrics(status), t: status.t ?? Date.now() }
-      if (calibrating) {
-        calibrationSamples.push(sample)
-        return
+      // Timestamps come off our own clock. The server's `t` is seconds since
+      // the camera thread started, which is not comparable to Date.now().
+      const sample = {
+        ...extractMetrics(status),
+        serverScore: serverScoreOf(status),
+        t: Date.now(),
       }
       if (currentWord) {
         wordSamples.push(sample)
-        const partial = computeScore(wordSamples, baseline, wordStartTime)
-        scoreHistory.push({ t: sample.t, score: partial })
         const cutoff = sample.t - ROLLING_WINDOW_S * 1000
-        scoreHistory = scoreHistory.filter((e) => e.t >= cutoff)
+        const recent = wordSamples.filter((s) => s.t >= cutoff)
+        scoreHistory = [
+          { t: sample.t, score: computeScore(recent, wordStartTime, expectedSeconds) },
+        ]
       }
     },
 
     rollingScore() {
       if (!scoreHistory.length) return 0
-      const sum = scoreHistory.reduce((a, e) => a + e.score, 0)
-      return Math.round(sum / scoreHistory.length)
+      return scoreHistory[scoreHistory.length - 1].score
     },
 
     supportLevel() {
@@ -128,6 +163,7 @@ export function createScorer() {
         if (!levelHoldStart) levelHoldStart = now
         if ((now - levelHoldStart) / 1000 >= threshold.holdSeconds) {
           currentLevel = targetLevel
+          levelHoldStart = now
         }
       } else {
         currentLevel = targetLevel
@@ -138,8 +174,10 @@ export function createScorer() {
     },
 
     finishWord() {
-      const score = computeScore(wordSamples, baseline, wordStartTime)
-      const result = { word: currentWord, score }
+      const score = computeScore(wordSamples, wordStartTime, expectedSeconds)
+      // Seconds spent on the word - the results chart uses it as bar width.
+      const seconds = Math.round(((Date.now() - wordStartTime) / 1000) * 10) / 10
+      const result = { word: currentWord, score, seconds }
       completedWords.push(result)
       currentWord = null
       wordSamples = []

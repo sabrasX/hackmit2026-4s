@@ -4,30 +4,66 @@ import DoodleBackground from '../components/DoodleBackground.jsx'
 import WordDisplay from '../components/WordDisplay.jsx'
 import SupportBanner from '../components/SupportBanner.jsx'
 import TickButton from '../components/TickButton.jsx'
+import CameraPreview from '../components/CameraPreview.jsx'
 import { useVisionStream } from '../hooks/useVisionStream.js'
 import { useAuth } from '../hooks/useAuth.jsx'
-import { createScorer } from '../lib/scoring.js'
+import { createScorer, paceFromSessions } from '../lib/scoring.js'
 import { speak } from '../lib/speech.js'
-import { saveSession } from '../lib/firebase.js'
-import { WORDS, CALIBRATION_SECONDS, SENTENCE } from '../config.js'
+import { saveSession, getSessions, getLesson } from '../lib/firebase.js'
+import { DEFAULT_LESSON } from '../config.js'
 
-const STEPS = { intro: 'intro', calibrating: 'calibrating', writing: 'writing', done: 'done' }
+const STEPS = { intro: 'intro', writing: 'writing', done: 'done' }
 
 export default function Writing() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { status, connected, send, isMock } = useVisionStream()
+  const { status, connected, send } = useVisionStream()
   const scorerRef = useRef(createScorer())
   const [step, setStep] = useState(STEPS.intro)
   const [wordIndex, setWordIndex] = useState(0)
   const [supportLevel, setSupportLevel] = useState(0)
-  const [calibrationLeft, setCalibrationLeft] = useState(CALIBRATION_SECONDS)
   const [, forceUpdate] = useState(0)
+  // This child's own writing pace, learned from their past sessions, so a
+  // slow writer isn't marked as struggling for writing at their normal speed.
+  const [pace, setPace] = useState(null)
+  // Which sentence to practise and the tutorial video for each of its words.
+  const [lesson, setLesson] = useState(DEFAULT_LESSON)
 
-  const currentWord = WORDS[wordIndex]
+  const words = lesson.words
+  const currentWord = words[wordIndex]?.word
+  const currentVideo = words[wordIndex]?.video
 
   useEffect(() => {
-    if (step !== STEPS.calibrating && step !== STEPS.writing) return
+    let cancelled = false
+    getLesson()
+      .then((l) => {
+        if (!cancelled) setLesson(l)
+      })
+      .catch(() => {
+        // Firestore unavailable - DEFAULT_LESSON from config.js is used.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!user?.uid) return
+    let cancelled = false
+    getSessions(user.uid)
+      .then((sessions) => {
+        if (!cancelled) setPace(paceFromSessions(sessions))
+      })
+      .catch(() => {
+        // No history available - the default pace in config.js is used.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [user])
+
+  useEffect(() => {
+    if (step !== STEPS.writing) return
     if (!status) return
 
     scorerRef.current.addStatus(status)
@@ -35,65 +71,45 @@ export default function Writing() {
     forceUpdate((n) => n + 1)
   }, [status, step])
 
-  useEffect(() => {
-    if (step !== STEPS.calibrating) return
-
-    scorerRef.current.startCalibration()
-    const interval = setInterval(() => {
-      setCalibrationLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval)
-          scorerRef.current.endCalibration()
-          scorerRef.current.startWord(WORDS[0])
-          send({ type: 'reset' })
-          speak(WORDS[0])
-          setStep(STEPS.writing)
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
-
-    return () => clearInterval(interval)
-  }, [step, send])
-
   const finishWord = useCallback(() => {
     scorerRef.current.finishWord()
     const next = wordIndex + 1
 
-    if (next >= WORDS.length) {
+    if (next >= words.length) {
       setStep(STEPS.done)
-      const words = scorerRef.current.getWords()
+      const scored = scorerRef.current.getWords()
       const overallScore = scorerRef.current.overall()
       sessionStorage.setItem(
         'lastSession',
-        JSON.stringify({ words, overallScore, sentence: SENTENCE }),
+        JSON.stringify({ words: scored, overallScore, sentence: lesson.sentence }),
       )
       if (user?.uid) {
-        saveSession(user.uid, { words, overallScore }).catch(() => {})
+        saveSession(user.uid, { words: scored, overallScore }).catch(() => {})
       }
       setTimeout(() => navigate('/results'), 800)
       return
     }
 
     setWordIndex(next)
-    scorerRef.current.startWord(WORDS[next])
+    scorerRef.current.startWord(words[next].word)
     send({ type: 'reset' })
-    speak(WORDS[next])
+    speak(words[next].word)
     setSupportLevel(0)
-  }, [wordIndex, navigate, send, user])
+  }, [wordIndex, navigate, send, user, words, lesson])
 
   const startSession = () => {
-    scorerRef.current = createScorer()
+    scorerRef.current = createScorer({ secondsPerLetter: pace })
     setWordIndex(0)
-    setCalibrationLeft(CALIBRATION_SECONDS)
-    setStep(STEPS.calibrating)
-    speak('Write anything you like for a few seconds to get started!')
+    setSupportLevel(0)
+    setStep(STEPS.writing)
+    scorerRef.current.startWord(words[0].word)
+    send({ type: 'reset' })
+    speak(words[0].word)
   }
 
   return (
     <DoodleBackground>
-      <main className="mx-auto flex min-h-dvh max-w-2xl flex-col px-6 py-10">
+      <main className="mx-auto flex min-h-dvh max-w-7xl flex-col px-6 py-6">
         <header className="mb-8 flex items-center justify-between">
           <button
             type="button"
@@ -107,7 +123,7 @@ export default function Writing() {
               className={`inline-block h-2.5 w-2.5 rounded-full ${connected ? 'bg-green-400' : 'bg-red-300'}`}
               aria-hidden="true"
             />
-            {connected ? (isMock ? 'Demo camera' : 'Camera connected') : 'Connecting camera…'}
+            {connected ? 'Camera connected' : 'Connecting camera…'}
           </div>
         </header>
 
@@ -119,11 +135,9 @@ export default function Writing() {
                 Writing Practice
               </h1>
               <p className="mt-4 text-lg text-slate-500">
-                You&apos;ll write: <strong className="text-sky-700">{SENTENCE}</strong>
+                You&apos;ll write: <strong className="text-sky-700">{lesson.sentence}</strong>
               </p>
-              <p className="mt-2 text-slate-400">
-                First we&apos;ll do a quick {CALIBRATION_SECONDS}-second warm-up, then one word at a time.
-              </p>
+              <p className="mt-2 text-slate-400">One word at a time - take your time!</p>
             </div>
             <button type="button" onClick={startSession} className="btn-primary">
               Let&apos;s Go!
@@ -131,36 +145,22 @@ export default function Writing() {
           </div>
         )}
 
-        {step === STEPS.calibrating && (
-          <div className="card-doodle flex flex-1 flex-col items-center justify-center gap-6 p-10 text-center">
-            <span className="text-6xl animate-bounce-gentle" aria-hidden="true">✋</span>
-            <h2 className="font-display text-3xl font-bold text-sky-700">Warm-up time!</h2>
-            <p className="text-lg text-slate-500">
-              Write anything on your paper for{' '}
-              <strong className="text-2xl text-sky-600">{calibrationLeft}</strong> seconds
-            </p>
-            <div className="h-3 w-full max-w-xs overflow-hidden rounded-full bg-slate-100">
-              <div
-                className="h-full rounded-full transition-all duration-1000"
-                style={{
-                  width: `${((CALIBRATION_SECONDS - calibrationLeft) / CALIBRATION_SECONDS) * 100}%`,
-                  background: 'var(--color-sky)',
-                }}
-              />
-            </div>
-          </div>
-        )}
-
         {step === STEPS.writing && (
-          <div className="flex flex-1 flex-col gap-8">
-            <WordDisplay word={currentWord} index={wordIndex} total={WORDS.length} />
+          <div className="grid flex-1 items-center gap-8 lg:grid-cols-[1fr_minmax(0,34rem)]">
+            <div className="flex flex-col items-center gap-6">
+              <WordDisplay word={currentWord} index={wordIndex} total={words.length} />
 
-            <SupportBanner level={supportLevel} word={currentWord} />
+              <SupportBanner level={supportLevel} word={currentWord} video={currentVideo} />
 
-            <div className="mt-auto flex flex-col items-center gap-4 pb-8">
               <p className="text-slate-500">Tap the check when you finish this word</p>
               <TickButton onClick={finishWord} />
             </div>
+
+            <CameraPreview
+              status={status}
+              rollingScore={scorerRef.current.rollingScore()}
+              connected={connected}
+            />
           </div>
         )}
 
