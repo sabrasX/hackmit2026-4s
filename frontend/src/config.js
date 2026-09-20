@@ -44,5 +44,5 @@ export const SECONDS_PER_LETTER = 3
 export const ROLLING_WINDOW_S = 5
 export const SUPPORT_LEVELS = [
   { level: 1, minScore: 30, holdSeconds: 2 }, // encouragement + read word aloud
-  { level: 2, minScore: 40, holdSeconds: 3 }, // play the word's tutorial video
+  { level: 2, minScore: 40, holdSeconds: 2 }, // play the word's tutorial video
 ]
