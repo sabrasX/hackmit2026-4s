@@ -1,4 +1,5 @@
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
+import { BASELINE_CREDIT, METRICS, WEIGHTS } from '../config.js'
 
 function barColor(score) {
   if (score < 40) return '#6bcb77'
@@ -68,6 +69,25 @@ export default function StruggleChart({ words = [] }) {
           <span className="inline-block h-3 w-3 rounded-full" style={{ background: '#ff85a2' }} />
           Needs support
         </span>
+      </div>
+      <div className="mt-6 border-t border-slate-100 pt-5 text-sm text-slate-500">
+        <h3 className="font-display font-bold text-sky-700">How the score is calculated</h3>
+        <p className="mt-2 leading-relaxed">
+          Each word gets a 0–100 struggle score. We average the Vision AI signals during the word,
+          multiply them by these weights, subtract {BASELINE_CREDIT * 100}% of the warm-up baseline,
+          then convert the result to a percentage.
+        </p>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {METRICS.map((metric) => (
+            <div key={metric.key} className="flex items-start justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2">
+              <span>
+                <strong className="text-slate-700">{metric.label}</strong>
+                <span className="block text-xs text-slate-400">{metric.source}</span>
+              </span>
+              <strong className="shrink-0 text-sky-700">{Math.round(WEIGHTS[metric.key] * 100)}%</strong>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )

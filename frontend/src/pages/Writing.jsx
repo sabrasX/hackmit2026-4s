@@ -4,6 +4,7 @@ import DoodleBackground from '../components/DoodleBackground.jsx'
 import WordDisplay from '../components/WordDisplay.jsx'
 import SupportBanner from '../components/SupportBanner.jsx'
 import TickButton from '../components/TickButton.jsx'
+import VisionStatus from '../components/VisionStatus.jsx'
 import { useVisionStream } from '../hooks/useVisionStream.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { createScorer } from '../lib/scoring.js'
@@ -154,6 +155,8 @@ export default function Writing() {
         {step === STEPS.writing && (
           <div className="flex flex-1 flex-col gap-8">
             <WordDisplay word={currentWord} index={wordIndex} total={WORDS.length} />
+
+            <VisionStatus status={status} connected={connected} isMock={isMock} />
 
             <SupportBanner level={supportLevel} word={currentWord} />
 

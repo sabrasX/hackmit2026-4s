@@ -1,31 +1,34 @@
-import { WEIGHTS, ROLLING_WINDOW_S, SUPPORT_LEVELS } from '../config.js'
+import {
+  BASELINE_CREDIT,
+  METRICS,
+  OVERTIME_GRACE_S,
+  OVERTIME_RAMP_S,
+  ROLLING_WINDOW_S,
+  SUPPORT_LEVELS,
+  WEIGHTS,
+} from '../config.js'
 
 function extractMetrics(status) {
   const handMissing = status.handVisible === false ? 1 : 0
   const stopped = status.stopped ? 1 : 0
-  const fidget = status.fidget ? 1 : 0
-  return { stopped, fidget, handMissing, overtime: 0 }
+  const wrongPosition = status.palmFacingAway || status.badPosture ? 1 : 0
+  return { stopped, wrongPosition, handMissing, overtime: 0 }
 }
 
 function weightedSum(metrics) {
-  return (
-    WEIGHTS.stopped * metrics.stopped +
-    WEIGHTS.fidget * metrics.fidget +
-    WEIGHTS.handMissing * metrics.handMissing +
-    WEIGHTS.overtime * metrics.overtime
-  )
+  return METRICS.reduce((sum, metric) => sum + WEIGHTS[metric.key] * metrics[metric.key], 0)
 }
 
 function averageMetrics(samples) {
-  if (!samples.length) return { stopped: 0, fidget: 0, handMissing: 0, overtime: 0 }
+  if (!samples.length) return { stopped: 0, wrongPosition: 0, handMissing: 0, overtime: 0 }
   const sum = samples.reduce(
     (acc, s) => ({
       stopped: acc.stopped + s.stopped,
-      fidget: acc.fidget + s.fidget,
+      wrongPosition: acc.wrongPosition + s.wrongPosition,
       handMissing: acc.handMissing + s.handMissing,
       overtime: acc.overtime + s.overtime,
     }),
-    { stopped: 0, fidget: 0, handMissing: 0, overtime: 0 },
+    { stopped: 0, wrongPosition: 0, handMissing: 0, overtime: 0 },
   )
   const n = samples.length
   return {
@@ -41,12 +44,14 @@ function computeScore(samples, baseline, wordStartTime) {
 
   const avg = averageMetrics(samples)
   const elapsed = (samples[samples.length - 1].t - wordStartTime) / 1000
-  const overtime = elapsed > 45 ? Math.min(1, (elapsed - 45) / 30) : 0
+  const overtime = elapsed > OVERTIME_GRACE_S
+    ? Math.min(1, (elapsed - OVERTIME_GRACE_S) / OVERTIME_RAMP_S)
+    : 0
   avg.overtime = overtime
 
   const raw = weightedSum(avg)
   const base = weightedSum(baseline)
-  const adjusted = Math.max(0, raw - base * 0.5)
+  const adjusted = Math.max(0, raw - base * BASELINE_CREDIT)
   return Math.round(100 * Math.min(1, adjusted))
 }
 
@@ -77,7 +82,7 @@ export function createScorer() {
 
     startWord(word) {
       currentWord = word
-      wordStartTime = Date.now()
+      wordStartTime = null
       wordSamples = []
       levelHoldStart = null
       currentLevel = 0
@@ -90,6 +95,7 @@ export function createScorer() {
         return
       }
       if (currentWord) {
+        if (wordStartTime === null) wordStartTime = sample.t
         wordSamples.push(sample)
         const partial = computeScore(wordSamples, baseline, wordStartTime)
         scoreHistory.push({ t: sample.t, score: partial })
