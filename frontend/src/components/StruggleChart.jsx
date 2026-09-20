@@ -97,8 +97,8 @@ export default function StruggleChart({ words = [] }) {
         {Object.entries(WEIGHTS)
           .map(([name, weight]) => `${PART_LABELS[name]} ${Math.round(weight * 100)}`)
           .join(', ')}{' '}
-        points. The warm-up measures how this child writes when they are calm, and that baseline is
-        discounted; words that take much longer than usual add up to 20 points. Each bar is the
+        points. The warm-up measures how this child writes when they are calm, and up to 10 points of
+        that baseline are discounted; words that take much longer than usual add up to 20 points. Each bar is the
         average for that word: low and green means calm writing, high and pink means support was
         needed.
       </p>

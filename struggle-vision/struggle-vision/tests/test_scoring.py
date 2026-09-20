@@ -58,4 +58,5 @@ def test_the_worst_real_state_scores_sixty(worst):
 def test_a_real_stalled_hand_scores_above_the_video_threshold():
     det = StruggleDetector()
     t = feed(det, 7.0, template=PALM_AWAY)
-    assert struggle_score(det.evaluate(t)) >= 55   # SUPPORT_LEVELS level 3 in frontend/src/config.js
+    # level 3 in frontend/src/config.js is 48, after up to 10 points of baseline discount
+    assert struggle_score(det.evaluate(t)) >= 58

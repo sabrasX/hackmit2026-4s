@@ -19,11 +19,12 @@ export const FIDGET_ARTICULATION = { low: 0.5, high: 2.0 }
 // Live support triggers on the rolling score (0-100) over ROLLING_WINDOW_S seconds.
 export const ROLLING_WINDOW_S = 5
 // A hand that is stopped and out of position - the worst the vision AI can see
-// at once - scores 60, so every threshold has to sit below that to be reachable.
+// at once - scores 60, and the warm-up baseline takes up to 10 off that, so
+// every threshold has to sit below 50 to be reachable.
 export const SUPPORT_LEVELS = [
-  { level: 1, minScore: 25, holdSeconds: 3 }, // encouragement + read word aloud
-  { level: 2, minScore: 40, holdSeconds: 4 }, // show dotted trace hint
-  { level: 3, minScore: 55, holdSeconds: 5 }, // play a video of the word being written
+  { level: 1, minScore: 20, holdSeconds: 3 }, // encouragement + read word aloud
+  { level: 2, minScore: 35, holdSeconds: 4 }, // show dotted trace hint
+  { level: 3, minScore: 48, holdSeconds: 5 }, // play a video of the word being written
 ]
 
 // Support level at which the reference-video helper opens.

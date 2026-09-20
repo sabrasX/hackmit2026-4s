@@ -5,6 +5,14 @@ const OVERTIME_AFTER_S = 45
 const OVERTIME_RAMP_S = 30
 const OVERTIME_MAX_POINTS = 20
 
+// Half the warm-up score is discounted, but never so much that the worst state
+// the camera can report stops reaching the top support threshold.
+const BASELINE_DISCOUNT_MAX_POINTS = 10
+
+function baselineDiscount(baseline) {
+  return Math.min(0.5 * baseline, BASELINE_DISCOUNT_MAX_POINTS)
+}
+
 function ramp(value, low, high) {
   if (!(high > low)) return 0
   return Math.min(1, Math.max(0, (value - low) / (high - low)))
@@ -57,7 +65,7 @@ function computeScore(samples, baseline, wordStartTime) {
 
   // The child's own calm baseline is discounted, so a naturally fidgety hand
   // doesn't start every word halfway up the scale.
-  const live = Math.max(0, mean(samples.map((s) => s.score)) - 0.5 * baseline)
+  const live = Math.max(0, mean(samples.map((s) => s.score)) - baselineDiscount(baseline))
   const elapsed = (samples[samples.length - 1].t - wordStartTime) / 1000
   const overtime = ramp(elapsed, OVERTIME_AFTER_S, OVERTIME_AFTER_S + OVERTIME_RAMP_S)
   return Math.round(Math.min(100, live + OVERTIME_MAX_POINTS * overtime))
@@ -122,7 +130,7 @@ export function createScorer() {
     rollingScore() {
       // Baseline-discounted like the finished-word score, so a naturally
       // restless hand doesn't trigger support while writing normally.
-      return Math.round(Math.max(0, mean(scoreHistory.map((e) => e.score)) - 0.5 * baseline))
+      return Math.round(Math.max(0, mean(scoreHistory.map((e) => e.score)) - baselineDiscount(baseline)))
     },
 
     supportLevel() {
