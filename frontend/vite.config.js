@@ -26,7 +26,13 @@ function readExports() {
   } catch {
     return out
   }
-  for (const f of files) out.set(f, readFileSync(join(EXPORTS_DIR, f), 'utf8'))
+  for (const f of files) {
+    try {
+      out.set(f, readFileSync(join(EXPORTS_DIR, f), 'utf8'))
+    } catch {
+      // skip files removed/unreadable mid-scan
+    }
+  }
   return out
 }
 
