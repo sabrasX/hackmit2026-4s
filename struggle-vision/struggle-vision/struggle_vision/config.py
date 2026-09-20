@@ -19,6 +19,7 @@ class Config:
     stop_seconds: float = 1.0
     still_extent: float = 0.30          # box the grip point stays inside, in hand sizes
     stall_articulation: float = 0.5    # finger speed still quiet enough to count as stalled
+    fidget_articulation: float = 2.0    # finger speed well past writing: a full fidget score
 
     # --- 2) palm facing away: read straight off the landmarks, nothing to tune ---
 

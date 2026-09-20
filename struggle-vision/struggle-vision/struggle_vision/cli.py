@@ -12,6 +12,7 @@ import cv2
 from .config import Config
 from .detector import StruggleDetector, load_calibration, save_calibration
 from .hands import HandTracker, draw_hand
+from .scoring import struggle_score
 from .tracking import list_cameras, open_camera
 
 HELP_LINE = "c calibrate   x clear calibration   r reset   q quit"
@@ -135,6 +136,7 @@ def main(argv=None):
                 break
             continue
 
+        score = struggle_score(st, cfg)
         alert = st.struggling or st.bad_posture
         if st.struggling:
             text, colour = "STRUGGLING: " + ", ".join(st.reasons), (0, 0, 255)
@@ -145,7 +147,8 @@ def main(argv=None):
         else:
             text, colour = "OK", (0, 200, 0)
         cv2.rectangle(frame, (0, 0), (w - 1, h - 1), colour, 8 if alert else 2)
-        cv2.putText(frame, text, (15, 40), cv2.FONT_HERSHEY_SIMPLEX, 1.0, colour, 2)
+        cv2.putText(frame, f"{text}   score {score:.0f}/100", (15, 40),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, colour, 2)
 
         if not st.calibrated:
             note, note_colour = "no hand position recorded - press 'c' to calibrate", (0, 200, 255)

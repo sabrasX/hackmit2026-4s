@@ -5,18 +5,19 @@ function isMockMode() {
   return new URLSearchParams(window.location.search).get('mock') === '1'
 }
 
+// Shaped like the vision server's payload, minus its struggleScore: the score
+// is then computed the same way the server would compute it.
 function randomStatus(t) {
   const r = Math.random()
   return {
     t,
     handVisible: r > 0.05,
     stopped: r > 0.6 && r < 0.75,
-    fidget: r > 0.75,
-    struggling: r > 0.7,
+    palmFacingAway: r > 0.9,
+    badPosture: r > 0.85 && r < 0.9,
+    struggling: r > 0.6,
     stillExtent: Math.random(),
-    reversalsPerS: Math.random() * 2,
-    efficiency: Math.random(),
-    articulation: Math.random(),
+    articulation: Math.random() * 2.5,
   }
 }
 

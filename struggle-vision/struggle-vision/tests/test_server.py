@@ -17,6 +17,7 @@ from test_detector import FLAT, PALM_AWAY, calibrated_detector, feed
 
 EXPECTED_KEYS = {
     "t", "handVisible", "stopped", "palmFacingAway", "struggling", "badPosture", "reasons",
+    "struggleScore", "scoreParts",
     "stillExtent", "articulation", "fingerExtension", "extensionExcess",
     "calibrated", "calibrating", "calibrationProgress", "calibrationError",
 }
@@ -42,7 +43,7 @@ def test_payload_is_json_serialisable(build):
     det, t = build()
     text = json.dumps(payload_after(det, t))
     for value in json.loads(text).values():
-        assert value is None or isinstance(value, (bool, int, float, str, list))
+        assert value is None or isinstance(value, (bool, int, float, str, list, dict))
 
 
 def test_payload_reports_a_stall():
@@ -50,6 +51,15 @@ def test_payload_reports_a_stall():
     t = feed(det, 7.0)
     p = payload_after(det, t)
     assert p["stopped"] and p["struggling"] and "STOPPED" in p["reasons"]
+
+
+def test_payload_scores_a_stall_and_adds_up_to_the_parts():
+    det = StruggleDetector()
+    t = feed(det, 7.0)
+    p = payload_after(det, t)
+    assert p["struggleScore"] > 0
+    assert p["scoreParts"]["stopped"] > 0
+    assert p["struggleScore"] == pytest.approx(sum(p["scoreParts"].values()), abs=0.2)
 
 
 def test_payload_reports_the_palm_facing_away():

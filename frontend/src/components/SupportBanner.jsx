@@ -5,6 +5,7 @@ import TraceHint from './TraceHint.jsx'
 const MESSAGES = {
   1: "You're doing great! Keep going!",
   2: "Let's trace the word together!",
+  3: "Watch how it's written, then try again!",
 }
 
 export default function SupportBanner({ level, word }) {
@@ -26,7 +27,7 @@ export default function SupportBanner({ level, word }) {
     >
       <p className="font-display text-xl font-bold text-sky-700">
         {level === 1 ? '💪 ' : '✏️ '}
-        {MESSAGES[level]}
+        {MESSAGES[level] || MESSAGES[1]}
       </p>
       {level >= 2 && word && (
         <div className="mt-4">

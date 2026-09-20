@@ -4,12 +4,18 @@ import DoodleBackground from '../components/DoodleBackground.jsx'
 import WordDisplay from '../components/WordDisplay.jsx'
 import SupportBanner from '../components/SupportBanner.jsx'
 import TickButton from '../components/TickButton.jsx'
+import ReferenceVideoPopup from '../components/ReferenceVideoPopup.jsx'
 import { useVisionStream } from '../hooks/useVisionStream.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { createScorer } from '../lib/scoring.js'
 import { speak } from '../lib/speech.js'
 import { saveSession } from '../lib/firebase.js'
-import { WORDS, CALIBRATION_SECONDS, SENTENCE } from '../config.js'
+import { saveLastSession } from '../lib/sessionStore.js'
+import { WORDS, CALIBRATION_SECONDS, SENTENCE, VIDEO_SUPPORT_LEVEL } from '../config.js'
+
+function defaultVideoSrc(word) {
+  return `${import.meta.env.BASE_URL}videos/${word.toLowerCase()}.mp4`
+}
 
 const STEPS = { intro: 'intro', calibrating: 'calibrating', writing: 'writing', done: 'done' }
 
@@ -22,9 +28,12 @@ export default function Writing() {
   const [wordIndex, setWordIndex] = useState(0)
   const [supportLevel, setSupportLevel] = useState(0)
   const [calibrationLeft, setCalibrationLeft] = useState(CALIBRATION_SECONDS)
-  const [, forceUpdate] = useState(0)
+  const [liveScore, setLiveScore] = useState(0)
+  const [videoDismissed, setVideoDismissed] = useState(false)
+  const [videos, setVideos] = useState({})
 
   const currentWord = WORDS[wordIndex]
+  const showVideo = supportLevel >= VIDEO_SUPPORT_LEVEL && !videoDismissed
 
   useEffect(() => {
     if (step !== STEPS.calibrating && step !== STEPS.writing) return
@@ -32,7 +41,7 @@ export default function Writing() {
 
     scorerRef.current.addStatus(status)
     setSupportLevel(scorerRef.current.supportLevel())
-    forceUpdate((n) => n + 1)
+    setLiveScore(scorerRef.current.rollingScore())
   }, [status, step])
 
   useEffect(() => {
@@ -65,10 +74,7 @@ export default function Writing() {
       setStep(STEPS.done)
       const words = scorerRef.current.getWords()
       const overallScore = scorerRef.current.overall()
-      sessionStorage.setItem(
-        'lastSession',
-        JSON.stringify({ words, overallScore, sentence: SENTENCE }),
-      )
+      saveLastSession(user?.uid, { words, overallScore, sentence: SENTENCE })
       if (user?.uid) {
         saveSession(user.uid, { words, overallScore }).catch(() => {})
       }
@@ -81,12 +87,14 @@ export default function Writing() {
     send({ type: 'reset' })
     speak(WORDS[next])
     setSupportLevel(0)
+    setVideoDismissed(false)
   }, [wordIndex, navigate, send, user])
 
   const startSession = () => {
     scorerRef.current = createScorer()
     setWordIndex(0)
     setCalibrationLeft(CALIBRATION_SECONDS)
+    setVideoDismissed(false)
     setStep(STEPS.calibrating)
     speak('Write anything you like for a few seconds to get started!')
   }
@@ -108,6 +116,11 @@ export default function Writing() {
               aria-hidden="true"
             />
             {connected ? (isMock ? 'Demo camera' : 'Camera connected') : 'Connecting camera…'}
+            {step === STEPS.writing && (
+              <span className="ml-2 rounded-full bg-slate-100 px-3 py-1 font-semibold text-slate-600">
+                Struggle {liveScore}/100
+              </span>
+            )}
           </div>
         </header>
 
@@ -161,6 +174,15 @@ export default function Writing() {
               <p className="text-slate-500">Tap the check when you finish this word</p>
               <TickButton onClick={finishWord} />
             </div>
+
+            {showVideo && (
+              <ReferenceVideoPopup
+                word={currentWord}
+                src={videos[currentWord] || defaultVideoSrc(currentWord)}
+                onPick={(word, src) => setVideos((prev) => ({ ...prev, [word]: src }))}
+                onClose={() => setVideoDismissed(true)}
+              />
+            )}
           </div>
         )}
 

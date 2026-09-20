@@ -180,17 +180,19 @@ every 0.2 s:
 
 ## Streaming to a web UI
 
-`server.py` runs the same camera loop headless and pushes each status over a
-WebSocket, for a live dashboard or graph.
+`server.py` runs the same camera loop and pushes each status over a WebSocket, for a
+live dashboard or graph. A preview window opens alongside it showing the tracked hand,
+the struggle score and the bars that make it up, so anyone watching can see where the
+number comes from.
 
 ```bash
-python -m struggle_vision.server --source 0            # ws://0.0.0.0:8765
+python -m struggle_vision.server --source 0            # ws://0.0.0.0:8765 + preview window
 python -m struggle_vision.server --port 9000 --hz 10   # different port, faster stream
-python -m struggle_vision.server --show                # also open a local preview window
+python -m struggle_vision.server --no-show             # headless, no preview window
 ```
 
 It takes every `--flag` the CLI does, plus `--host`, `--port`, `--hz` (messages per
-second, default 5) and `--show`. The camera runs on its own thread and the socket side
+second, default 5) and `--no-show`. The camera runs on its own thread and the socket side
 samples the latest status, so a slow or disconnected client never stalls the camera,
 and the stream rate is independent of the frame rate.
 
@@ -207,6 +209,8 @@ One JSON object per message, camelCase, flat:
   "struggling": true,
   "badPosture": false,
   "reasons": ["WRONG POSITION"],
+  "struggleScore": 32.3,
+  "scoreParts": {"stopped": 0.0, "wrongPosition": 25.0, "fidget": 7.3, "handMissing": 0.0},
   "stillExtent": 0.41,
   "articulation": 0.093,
   "fingerExtension": 148.2,
@@ -219,7 +223,9 @@ One JSON object per message, camelCase, flat:
 ```
 
 `reasons` holds the human-readable labels for whatever is currently firing, ready to
-print. Every number is a plain JSON number, so the whole object can be dropped straight
+print. `struggleScore` is those signals collapsed into one 0-100 number (see
+`scoring.py`), and `scoreParts` breaks it down so a UI can explain the score instead of
+just showing it. Every number is a plain JSON number, so the whole object can be dropped straight
 into a chart series.
 
 ### Commands from the client

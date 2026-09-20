@@ -22,13 +22,14 @@ import websockets
 from .config import Config
 from .detector import StruggleDetector, load_calibration, save_calibration
 from .hands import HandTracker, draw_hand
+from .scoring import WEIGHTS, score_parts, struggle_score
 from .tracking import list_cameras, open_camera
 
 DEFAULT_HOST = "0.0.0.0"
 DEFAULT_PORT = 8765
 
 
-def status_payload(t: float, st, det) -> dict:
+def status_payload(t: float, st, det, cfg: Config = None) -> dict:
     """Status as the front end wants it: flat, JSON-safe, camelCase.
 
     Everything is forced through float()/bool() on the way out. Several of these
@@ -46,6 +47,9 @@ def status_payload(t: float, st, det) -> dict:
         "struggling": bool(st.struggling),
         "badPosture": bool(st.bad_posture),
         "reasons": list(st.reasons),
+        # the one number the web UI graphs, so both ends agree on it
+        "struggleScore": num(struggle_score(st, cfg), 1),
+        "scoreParts": {k: num(v, 1) for k, v in score_parts(st, cfg).items()},
         # the raw numbers behind them, for graphing
         "stillExtent": num(st.still_extent, 4),
         "articulation": num(st.articulation, 4),
@@ -59,12 +63,47 @@ def status_payload(t: float, st, det) -> dict:
     }
 
 
+def draw_overlay(frame, st, det, t: float, cfg: Config):
+    """The live preview a judge watches: the score and the parts it is made of."""
+    import cv2
+
+    h, w = frame.shape[:2]
+    if det.calibrating:
+        pct = int(100 * det.calibration_progress(t))
+        cv2.rectangle(frame, (0, 0), (w - 1, h - 1), (0, 200, 255), 8)
+        cv2.putText(frame, f"CALIBRATING {pct}% - hold the correct writing position",
+                    (15, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 200, 255), 2)
+        return
+
+    score = struggle_score(st, cfg)
+    colour = (0, 200, 0) if score < 40 else (0, 200, 255) if score <= 70 else (0, 0, 255)
+    cv2.rectangle(frame, (0, 0), (w - 1, h - 1), colour, 8 if score > 70 else 2)
+    cv2.putText(frame, f"STRUGGLE SCORE {score:.0f}/100", (15, 45),
+                cv2.FONT_HERSHEY_SIMPLEX, 1.1, colour, 3)
+
+    # the bar chart of contributions, so the number is never a black box
+    y = 80
+    for name, points in score_parts(st, cfg).items():
+        full = int(100 * WEIGHTS[name])
+        cv2.rectangle(frame, (15, y), (15 + full * 3, y + 16), (70, 70, 70), 1)
+        if points > 0:
+            cv2.rectangle(frame, (15, y), (15 + int(points * 3), y + 16), colour, -1)
+        cv2.putText(frame, f"{name} {points:.0f}/{full}", (15 + full * 3 + 10, y + 14),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (220, 220, 220), 1)
+        y += 24
+
+    detail = (f"still extent {st.still_extent:.2f}   finger speed {st.articulation:.2f}   "
+              f"palm {'away' if st.palm_facing_away else 'down'}   "
+              f"{'no hand' if not st.hand_visible else 'hand seen'}")
+    cv2.putText(frame, detail, (15, h - 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
+
 class VisionWorker(threading.Thread):
     """Owns the camera, the tracker and the detector. Nothing else touches them."""
 
     daemon = True
 
-    def __init__(self, cfg, source, model=None, calibration=None, show=False):
+    def __init__(self, cfg, source, model=None, calibration=None, show=True):
         super().__init__(name="vision")
         self.cfg = cfg
         self.source = source
@@ -165,10 +204,12 @@ class VisionWorker(threading.Thread):
                 self._save_if_calibrated(det, was_calibrating)
                 was_calibrating = det.calibrating
 
+                st = det.evaluate(t)
                 with self._lock:
-                    self._latest = status_payload(t, det.evaluate(t), det)
+                    self._latest = status_payload(t, st, det, self.cfg)
 
                 if self.show:
+                    draw_overlay(frame, st, det, t, self.cfg)
                     cv2.imshow("struggle-vision (server)", frame)
                     if (cv2.waitKey(1) & 0xFF) == ord("q"):
                         break
@@ -228,7 +269,10 @@ def build_parser() -> argparse.ArgumentParser:
                     help="where the demonstrated grip is stored (default: calibration.json)")
     ap.add_argument("--no-calibration", action="store_true",
                     help="ignore any saved calibration and don't check hand position")
-    ap.add_argument("--show", action="store_true", help="also open a local preview window")
+    ap.add_argument("--no-show", dest="show", action="store_false",
+                    help="run headless; by default a live preview window opens")
+    ap.add_argument("--show", dest="show", action="store_true", default=True,
+                    help=argparse.SUPPRESS)
     group = ap.add_argument_group("detector settings (defaults live in config.py)")
     for f in fields(Config):
         group.add_argument("--" + f.name.replace("_", "-"), dest=f.name, type=f.type, default=None,

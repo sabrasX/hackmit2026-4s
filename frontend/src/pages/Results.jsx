@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import confetti from 'canvas-confetti'
 import DoodleBackground from '../components/DoodleBackground.jsx'
 import StruggleChart from '../components/StruggleChart.jsx'
+import { useAuth } from '../hooks/useAuth.jsx'
+import { loadLastSession } from '../lib/sessionStore.js'
 
 function scoreToStars(overall) {
   if (overall < 35) return 3
@@ -24,15 +26,9 @@ function StarRating({ count }) {
 
 export default function Results() {
   const navigate = useNavigate()
+  const { user } = useAuth()
 
-  const session = useMemo(() => {
-    try {
-      const raw = sessionStorage.getItem('lastSession')
-      return raw ? JSON.parse(raw) : null
-    } catch {
-      return null
-    }
-  }, [])
+  const session = useMemo(() => loadLastSession(user?.uid), [user?.uid])
 
   const stars = session ? scoreToStars(session.overallScore) : 0
   const message =

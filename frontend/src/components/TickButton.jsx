@@ -1,9 +1,31 @@
 import { useRef, useState } from 'react'
 
+// A two-note chime, synthesised rather than shipped as an audio file so the
+// app never depends on an asset that isn't there.
 function playSuccessSound() {
-  const audio = new Audio('/sounds/success.mp3')
-  audio.volume = 0.5
-  audio.play().catch(() => {})
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext
+  if (!AudioContextClass) return
+  try {
+    const ctx = new AudioContextClass()
+    const gain = ctx.createGain()
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.02)
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.45)
+    gain.connect(ctx.destination)
+
+    ;[880, 1320].forEach((frequency, i) => {
+      const osc = ctx.createOscillator()
+      osc.type = 'sine'
+      osc.frequency.value = frequency
+      osc.connect(gain)
+      osc.start(ctx.currentTime + i * 0.12)
+      osc.stop(ctx.currentTime + 0.45)
+    })
+
+    setTimeout(() => ctx.close().catch(() => {}), 800)
+  } catch {
+    // audio blocked by the browser: the button still works silently
+  }
 }
 
 export default function TickButton({ onClick, label = 'Done!' }) {

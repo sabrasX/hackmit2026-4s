@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth'
 import { auth, getUserProfile, isFirebaseConfigured } from '../lib/firebase.js'
+import { clearLastSessions } from '../lib/sessionStore.js'
 
 const AuthContext = createContext(null)
 const DEMO_KEY = 'the-pen-pal-demo-user'
@@ -59,7 +60,11 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     if (!isFirebaseConfigured) {
-      const demoUser = { uid: 'demo', email, name: email.split('@')[0] || 'Student' }
+      const demoUser = {
+        uid: `demo:${email.trim().toLowerCase()}`,
+        email,
+        name: email.split('@')[0] || 'Student',
+      }
       saveDemoUser(demoUser)
       setUser(demoUser)
       return
@@ -76,6 +81,7 @@ export function AuthProvider({ children }) {
   const logout = async () => {
     if (isFirebaseConfigured) await signOut(auth)
     else saveDemoUser(null)
+    clearLastSessions()
     setUser(null)
   }
 

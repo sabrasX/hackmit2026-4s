@@ -1,57 +1,70 @@
-import { WEIGHTS, ROLLING_WINDOW_S, SUPPORT_LEVELS } from '../config.js'
+import { WEIGHTS, FIDGET_ARTICULATION, ROLLING_WINDOW_S, SUPPORT_LEVELS } from '../config.js'
 
-function extractMetrics(status) {
-  const handMissing = status.handVisible === false ? 1 : 0
-  const stopped = status.stopped ? 1 : 0
-  const fidget = status.fidget ? 1 : 0
-  return { stopped, fidget, handMissing, overtime: 0 }
+// A word taking longer than this is struggle the camera can't see on its own.
+const OVERTIME_AFTER_S = 45
+const OVERTIME_RAMP_S = 30
+const OVERTIME_MAX_POINTS = 20
+
+function ramp(value, low, high) {
+  if (!(high > low)) return 0
+  return Math.min(1, Math.max(0, (value - low) / (high - low)))
 }
 
-function weightedSum(metrics) {
-  return (
-    WEIGHTS.stopped * metrics.stopped +
-    WEIGHTS.fidget * metrics.fidget +
-    WEIGHTS.handMissing * metrics.handMissing +
-    WEIGHTS.overtime * metrics.overtime
-  )
-}
-
-function averageMetrics(samples) {
-  if (!samples.length) return { stopped: 0, fidget: 0, handMissing: 0, overtime: 0 }
-  const sum = samples.reduce(
-    (acc, s) => ({
-      stopped: acc.stopped + s.stopped,
-      fidget: acc.fidget + s.fidget,
-      handMissing: acc.handMissing + s.handMissing,
-      overtime: acc.overtime + s.overtime,
-    }),
-    { stopped: 0, fidget: 0, handMissing: 0, overtime: 0 },
-  )
-  const n = samples.length
+// Mirror of struggle_vision/scoring.py, for statuses that arrive without a
+// score of their own (the ?mock=1 demo stream).
+function localScoreParts(status) {
+  const handVisible = status.handVisible !== false
+  const fidget = handVisible
+    ? ramp(status.articulation ?? 0, FIDGET_ARTICULATION.low, FIDGET_ARTICULATION.high)
+    : 0
   return {
-    stopped: sum.stopped / n,
-    fidget: sum.fidget / n,
-    handMissing: sum.handMissing / n,
-    overtime: sum.overtime / n,
+    stopped: 100 * WEIGHTS.stopped * (status.stopped ? 1 : 0),
+    wrongPosition: 100 * WEIGHTS.wrongPosition * (status.palmFacingAway || status.badPosture ? 1 : 0),
+    fidget: 100 * WEIGHTS.fidget * fidget,
+    handMissing: 100 * WEIGHTS.handMissing * (handVisible ? 0 : 1),
   }
+}
+
+/** The parts of one status's struggle score, in points out of 100. */
+export function scoreParts(status) {
+  if (status?.scoreParts) return status.scoreParts
+  return localScoreParts(status ?? {})
+}
+
+/** One status's struggle score, 0 (calm) to 100. The vision server's own
+ *  number when it sent one, so the graph shows what the camera measured. */
+export function sampleScore(status) {
+  if (Number.isFinite(status?.struggleScore)) return status.struggleScore
+  return Object.values(localScoreParts(status ?? {})).reduce((a, b) => a + b, 0)
+}
+
+function mean(values) {
+  if (!values.length) return 0
+  return values.reduce((a, b) => a + b, 0) / values.length
+}
+
+function averageParts(samples) {
+  const names = Object.keys(WEIGHTS)
+  const out = {}
+  for (const name of names) {
+    out[name] = Math.round(mean(samples.map((s) => s.parts[name] ?? 0)) * 10) / 10
+  }
+  return out
 }
 
 function computeScore(samples, baseline, wordStartTime) {
   if (!samples.length) return 0
 
-  const avg = averageMetrics(samples)
+  // The child's own calm baseline is discounted, so a naturally fidgety hand
+  // doesn't start every word halfway up the scale.
+  const live = Math.max(0, mean(samples.map((s) => s.score)) - 0.5 * baseline)
   const elapsed = (samples[samples.length - 1].t - wordStartTime) / 1000
-  const overtime = elapsed > 45 ? Math.min(1, (elapsed - 45) / 30) : 0
-  avg.overtime = overtime
-
-  const raw = weightedSum(avg)
-  const base = weightedSum(baseline)
-  const adjusted = Math.max(0, raw - base * 0.5)
-  return Math.round(100 * Math.min(1, adjusted))
+  const overtime = ramp(elapsed, OVERTIME_AFTER_S, OVERTIME_AFTER_S + OVERTIME_RAMP_S)
+  return Math.round(Math.min(100, live + OVERTIME_MAX_POINTS * overtime))
 }
 
 export function createScorer() {
-  let baseline = { stopped: 0, fidget: 0, handMissing: 0, overtime: 0 }
+  let baseline = 0
   let calibrating = false
   let calibrationSamples = []
   let currentWord = null
@@ -71,37 +84,43 @@ export function createScorer() {
     endCalibration() {
       calibrating = false
       if (calibrationSamples.length) {
-        baseline = averageMetrics(calibrationSamples)
+        baseline = mean(calibrationSamples.map((s) => s.score))
       }
+    },
+
+    baselineScore() {
+      return Math.round(baseline)
     },
 
     startWord(word) {
       currentWord = word
       wordStartTime = Date.now()
       wordSamples = []
+      scoreHistory = []
       levelHoldStart = null
       currentLevel = 0
     },
 
     addStatus(status) {
-      const sample = { ...extractMetrics(status), t: status.t ?? Date.now() }
+      const sample = {
+        score: sampleScore(status),
+        parts: scoreParts(status),
+        t: Date.now(),
+      }
       if (calibrating) {
         calibrationSamples.push(sample)
         return
       }
       if (currentWord) {
         wordSamples.push(sample)
-        const partial = computeScore(wordSamples, baseline, wordStartTime)
-        scoreHistory.push({ t: sample.t, score: partial })
+        scoreHistory.push(sample)
         const cutoff = sample.t - ROLLING_WINDOW_S * 1000
         scoreHistory = scoreHistory.filter((e) => e.t >= cutoff)
       }
     },
 
     rollingScore() {
-      if (!scoreHistory.length) return 0
-      const sum = scoreHistory.reduce((a, e) => a + e.score, 0)
-      return Math.round(sum / scoreHistory.length)
+      return Math.round(mean(scoreHistory.map((e) => e.score)))
     },
 
     supportLevel() {
@@ -139,7 +158,7 @@ export function createScorer() {
 
     finishWord() {
       const score = computeScore(wordSamples, baseline, wordStartTime)
-      const result = { word: currentWord, score }
+      const result = { word: currentWord, score, parts: averageParts(wordSamples) }
       completedWords.push(result)
       currentWord = null
       wordSamples = []
@@ -151,8 +170,7 @@ export function createScorer() {
 
     overall() {
       if (!completedWords.length) return 0
-      const sum = completedWords.reduce((a, w) => a + w.score, 0)
-      return Math.round(sum / completedWords.length)
+      return Math.round(mean(completedWords.map((w) => w.score)))
     },
 
     getWords() {
