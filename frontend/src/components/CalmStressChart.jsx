@@ -20,28 +20,24 @@ function colorFor(state) {
   return state === 'stressed' ? STRESSED : CALM
 }
 
-// Until the Arduino is hooked up, fake a stress trace from the per-word scores so
-// the chart has something to show.
-export function samplesFromWords(words = []) {
+// Calm is the baseline: when no Arduino data is available, show a flat calm trace
+// spanning the session duration. State never comes from the struggle score.
+export function calmBaseline(words = []) {
+  const total = Math.max(
+    words.reduce((sum, w) => sum + Math.max(w.seconds ?? 0, 0), 0),
+    1,
+  )
+  const steps = Math.max(4, Math.round(total * 2))
   const out = []
-  let t = 0
-  words.forEach((w, wi) => {
-    const dur = Math.max(w.seconds ?? 0, 0.5)
-    const steps = Math.max(2, Math.round(dur * 2))
-    const last = wi === words.length - 1
-    // Each word owns its start boundary; the final word also emits the session end.
-    for (let i = 0; i < steps + (last ? 1 : 0); i++) {
-      const wobble = Math.sin((t + i) * 1.7) * 6
-      const stress = Math.min(100, Math.max(0, w.score + wobble))
-      out.push({
-        t: +(t + (dur * i) / steps).toFixed(2),
-        stress: Math.round(stress),
-        confidence: Math.round(Math.min(100, 60 + Math.abs(stress - 50) * 0.8)),
-        state: stress >= 50 ? 'stressed' : 'calm',
-      })
-    }
-    t += dur
-  })
+  for (let i = 0; i <= steps; i++) {
+    const t = (total * i) / steps
+    out.push({
+      t: +t.toFixed(2),
+      stress: Math.round(20 + Math.sin(t * 1.3) * 3),
+      confidence: 50,
+      state: 'calm',
+    })
+  }
   return out
 }
 

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import confetti from 'canvas-confetti'
 import DoodleBackground from '../components/DoodleBackground.jsx'
 import StruggleChart from '../components/StruggleChart.jsx'
-import CalmStressChart, { samplesFromWords } from '../components/CalmStressChart.jsx'
+import CalmStressChart, { calmBaseline } from '../components/CalmStressChart.jsx'
 
 export default function Results() {
   const navigate = useNavigate()
@@ -17,10 +17,9 @@ export default function Results() {
     }
   }, [])
 
-  // Real Arduino samples land in session.sensorSamples; fake them from word
-  // scores until that pipeline exists.
+  // Real Arduino samples land in session.sensorSamples; calm is the fallback.
   const sensorSamples = useMemo(
-    () => session?.sensorSamples?.length ? session.sensorSamples : samplesFromWords(session?.words),
+    () => session?.sensorSamples?.length ? session.sensorSamples : calmBaseline(session?.words),
     [session],
   )
 
