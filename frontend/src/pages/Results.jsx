@@ -63,25 +63,21 @@ export default function Results() {
             <p className="mt-3 text-xl text-slate-600">{message}</p>
           </div>
 
-          <div className="mb-8 mt-8">
-            <h2 className="font-display mb-4 text-xl font-bold text-sky-700">Your words</h2>
-            <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
-              <div className="min-w-0 flex-1">
-                <StruggleChart words={session.words} />
-              </div>
-              <div className="card-doodle shrink-0 px-6 py-5 text-center sm:w-44">
-                <p className="text-sm font-semibold text-slate-500">Total struggle score</p>
-                <p className="font-display mt-2 text-5xl font-bold text-sky-700">
-                  {session.overallScore}
-                </p>
-                <p className="mt-1 text-sm text-slate-400">out of 100</p>
-                <p className="mt-3 text-xs text-slate-400">Lower is better</p>
-              </div>
-            </div>
+          <div className="card-doodle mx-auto mt-8 w-fit px-8 py-5 text-center">
+            <p className="text-sm font-semibold text-slate-500">Total struggle score</p>
+            <p className="font-display mt-2 text-5xl font-bold text-sky-700">
+              {session.overallScore}
+            </p>
+            <p className="mt-1 text-sm text-slate-400">out of 100 · lower is better</p>
           </div>
 
-          <div className="mb-8">
-            <h2 className="font-display mb-4 text-xl font-bold text-sky-700">Calm vs stressed</h2>
+          <div className="mt-10 mb-10">
+            <h2 className="font-display mb-8 text-xl font-bold text-sky-700">Your words</h2>
+            <StruggleChart words={session.words} />
+          </div>
+
+          <div className="mb-10">
+            <h2 className="font-display mb-8 text-xl font-bold text-sky-700">Calm vs stressed</h2>
             <CalmStressChart samples={sensorSamples} />
           </div>
 

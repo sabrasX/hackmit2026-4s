@@ -3,7 +3,8 @@
 // for every failure mode: bridge down, no export yet, no finger, warming up…
 
 export const HEART_SESSION_URL = '/api/heart-session'
-const FETCH_TIMEOUT_MS = 4000
+// Must exceed the bridge's 4s `adb pull` budget so a hung adb still yields the cached file.
+const FETCH_TIMEOUT_MS = 7000
 const WINDOW_TOLERANCE_S = 5
 
 function toState(state) {
@@ -13,10 +14,11 @@ function toState(state) {
 /**
  * Convert exported samples ({unix, state, confidence 0-1}) into chart samples
  * ({t, confidence 0-100, state}) covering [startUnix, endUnix].
- * If the Arduino clock doesn't overlap the session (unsynced device clock),
- * the most recent stretch of the same duration is used instead.
+ * With `live` data whose clock doesn't overlap the session (unsynced board
+ * clock), the most recent stretch of the same duration is used instead. Cached
+ * exports must overlap, otherwise they may be a previous session's readings.
  */
-export function samplesForWindow(exported, startUnix, endUnix) {
+export function samplesForWindow(exported, startUnix, endUnix, { live = false } = {}) {
   if (!Array.isArray(exported) || !exported.length) return []
   const duration = Math.max(endUnix - startUnix, 0)
   const sorted = exported
@@ -29,6 +31,7 @@ export function samplesForWindow(exported, startUnix, endUnix) {
   )
   let origin = startUnix
   if (!inWindow.length) {
+    if (!live) return []
     const last = sorted[sorted.length - 1].unix
     inWindow = sorted.filter((s) => s.unix >= last - duration)
     origin = inWindow[0].unix
@@ -48,7 +51,8 @@ export async function fetchSensorSamples(startUnix, endUnix) {
     const res = await fetch(HEART_SESSION_URL, { signal: ctrl.signal })
     if (!res.ok) return []
     const doc = await res.json()
-    return samplesForWindow(doc?.samples, startUnix, endUnix)
+    const live = res.headers.get('X-Heart-Source') === 'live'
+    return samplesForWindow(doc?.samples, startUnix, endUnix, { live })
   } catch {
     return []
   } finally {
