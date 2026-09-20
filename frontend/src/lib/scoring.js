@@ -176,8 +176,10 @@ export function createScorer({ secondsPerLetter } = {}) {
     finishWord() {
       const score = computeScore(wordSamples, wordStartTime, expectedSeconds)
       // Seconds spent on the word - the results chart uses it as bar width.
-      const seconds = Math.round(((Date.now() - wordStartTime) / 1000) * 10) / 10
-      const result = { word: currentWord, score, seconds }
+      const endedAt = Date.now()
+      const seconds = Math.round(((endedAt - wordStartTime) / 1000) * 10) / 10
+      // The window is what lets heart-monitor samples be matched to this word.
+      const result = { word: currentWord, score, seconds, startedAt: wordStartTime, endedAt }
       completedWords.push(result)
       currentWord = null
       wordSamples = []

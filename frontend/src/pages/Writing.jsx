@@ -6,13 +6,15 @@ import SupportBanner from '../components/SupportBanner.jsx'
 import TickButton from '../components/TickButton.jsx'
 import CameraPreview from '../components/CameraPreview.jsx'
 import { useVisionStream } from '../hooks/useVisionStream.js'
+import { useHeartMonitor } from '../hooks/useHeartMonitor.js'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { createScorer, paceFromSessions } from '../lib/scoring.js'
+import { applyStressToWords, summarise, toChartSamples } from '../lib/heart.js'
 import { speak } from '../lib/speech.js'
 import { saveSession, getSessions, getLesson } from '../lib/firebase.js'
-import { DEFAULT_LESSON } from '../config.js'
+import { DEFAULT_LESSON, CALIBRATION_TIMEOUT_S } from '../config.js'
 
-const STEPS = { intro: 'intro', writing: 'writing', done: 'done' }
+const STEPS = { intro: 'intro', calibrating: 'calibrating', writing: 'writing', done: 'done' }
 
 export default function Writing() {
   const navigate = useNavigate()
@@ -28,6 +30,12 @@ export default function Writing() {
   const [pace, setPace] = useState(null)
   // Which sentence to practise and the tutorial video for each of its words.
   const [lesson, setLesson] = useState(DEFAULT_LESSON)
+  const [calibrationLeft, setCalibrationLeft] = useState(CALIBRATION_TIMEOUT_S)
+  const sessionStartRef = useRef(null)
+
+  // Heart samples are collected quietly through the session and only reported
+  // at the end - nothing about the sensor is shown while the child is writing.
+  const heart = useHeartMonitor({ collecting: step === STEPS.writing })
 
   const words = lesson.words
   const currentWord = words[wordIndex]?.word
@@ -71,20 +79,69 @@ export default function Writing() {
     forceUpdate((n) => n + 1)
   }, [status, step])
 
+  const beginWriting = useCallback(() => {
+    sessionStartRef.current = Date.now()
+    heart.resetSamples()
+    setStep(STEPS.writing)
+    scorerRef.current.startWord(words[0].word)
+    send({ type: 'reset' })
+    speak(words[0].word)
+  }, [heart, words, send])
+
+  // Wait on the heart monitor's baseline before the first word, but never let a
+  // missing or slow sensor block the session - the countdown starts it anyway.
+  useEffect(() => {
+    if (step !== STEPS.calibrating) return
+
+    if (heart.ready) {
+      beginWriting()
+      return
+    }
+
+    const timer = setInterval(() => {
+      setCalibrationLeft((left) => {
+        if (left <= 1) {
+          clearInterval(timer)
+          beginWriting()
+          return 0
+        }
+        return left - 1
+      })
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [step, heart.ready, beginWriting])
+
   const finishWord = useCallback(() => {
     scorerRef.current.finishWord()
     const next = wordIndex + 1
 
     if (next >= words.length) {
       setStep(STEPS.done)
-      const scored = scorerRef.current.getWords()
-      const overallScore = scorerRef.current.overall()
+
+      // Fold the heart monitor in once, at the end: it adjusts each word's score
+      // and supplies the calm/stressed trace. With no board the words are
+      // returned untouched and the summary is null.
+      const heartSamples = heart.takeSamples()
+      const scored = applyStressToWords(scorerRef.current.getWords(), heartSamples)
+      const overallScore = scored.length
+        ? Math.round(scored.reduce((sum, w) => sum + w.score, 0) / scored.length)
+        : 0
+      const heartSummary = summarise(heartSamples)
+      const sensorSamples = toChartSamples(heartSamples, sessionStartRef.current)
+
       sessionStorage.setItem(
         'lastSession',
-        JSON.stringify({ words: scored, overallScore, sentence: lesson.sentence }),
+        JSON.stringify({
+          words: scored,
+          overallScore,
+          sentence: lesson.sentence,
+          heart: heartSummary,
+          sensorSamples,
+        }),
       )
       if (user?.uid) {
-        saveSession(user.uid, { words: scored, overallScore }).catch(() => {})
+        saveSession(user.uid, { words: scored, overallScore, heart: heartSummary }).catch(() => {})
       }
       setTimeout(() => navigate('/results'), 800)
       return
@@ -95,16 +152,14 @@ export default function Writing() {
     send({ type: 'reset' })
     speak(words[next].word)
     setSupportLevel(0)
-  }, [wordIndex, navigate, send, user, words, lesson])
+  }, [wordIndex, navigate, send, user, words, lesson, heart])
 
   const startSession = () => {
     scorerRef.current = createScorer({ secondsPerLetter: pace })
     setWordIndex(0)
     setSupportLevel(0)
-    setStep(STEPS.writing)
-    scorerRef.current.startWord(words[0].word)
-    send({ type: 'reset' })
-    speak(words[0].word)
+    setCalibrationLeft(CALIBRATION_TIMEOUT_S)
+    setStep(STEPS.calibrating)
   }
 
   return (
@@ -141,6 +196,30 @@ export default function Writing() {
             </div>
             <button type="button" onClick={startSession} className="btn-primary">
               Let&apos;s Go!
+            </button>
+          </div>
+        )}
+
+        {step === STEPS.calibrating && (
+          <div className="card-doodle flex flex-1 flex-col items-center justify-center gap-6 p-10 text-center">
+            <div
+              className="h-16 w-16 animate-spin rounded-full border-4 border-slate-200"
+              style={{ borderTopColor: 'var(--color-sky)' }}
+              aria-hidden="true"
+            />
+            <div>
+              <h2 className="font-display text-3xl font-bold text-sky-700">Getting ready…</h2>
+              <p className="mt-3 text-lg text-slate-500">
+                {heart.connected
+                  ? 'Rest your finger on the sensor and stay still for a moment.'
+                  : 'Setting up your writing session.'}
+              </p>
+              <p className="mt-2 text-sm text-slate-400">
+                Starting in {calibrationLeft}s
+              </p>
+            </div>
+            <button type="button" onClick={beginWriting} className="btn-secondary">
+              Skip and start now
             </button>
           </div>
         )}
