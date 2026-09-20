@@ -4,6 +4,7 @@ import confetti from 'canvas-confetti'
 import DoodleBackground from '../components/DoodleBackground.jsx'
 import StruggleChart from '../components/StruggleChart.jsx'
 import CalmStressChart, { calmBaseline } from '../components/CalmStressChart.jsx'
+import HeartSummary from '../components/HeartSummary.jsx'
 
 export default function Results() {
   const navigate = useNavigate()
@@ -79,6 +80,8 @@ export default function Results() {
               </div>
             </div>
           </div>
+
+          <HeartSummary heart={session.heart} />
 
           <div className="mb-8">
             <h2 className="font-display mb-4 text-xl font-bold text-sky-700">Calm vs stressed</h2>

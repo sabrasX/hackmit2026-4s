@@ -26,6 +26,21 @@ export const WORDS = DEFAULT_LESSON.words.map((w) => w.word)
 // Vision server WebSocket URL.
 export const VISION_WS_URL = import.meta.env.VITE_VISION_WS_URL || 'ws://localhost:8765/ws'
 
+// Arduino heart-rate monitor (heartMonitor/python/main.py). Set this to the
+// board's own address, e.g. http://192.168.1.42:8766 - the board serves it, not
+// this laptop. Everything still works when it is unreachable.
+export const HEART_HTTP_URL = import.meta.env.VITE_HEART_HTTP_URL || 'http://localhost:8766'
+export const HEART_POLL_MS = 1000
+
+// How long to wait at the calibration screen before letting the child start
+// anyway. The sensor needs ~30 s in demo mode, ~110 s in full mode, but a
+// missing or struggling sensor must never block a session.
+export const CALIBRATION_TIMEOUT_S = 45
+
+// Weight of the sensor's "stressed" verdict in a word's struggle score, applied
+// only when the board actually produced readings for that word.
+export const STRESS_WEIGHT = 0.25
+
 // Per-word score weights (see lib/scoring.js). Must add up to 1.
 // NOTE: the vision detector dropped "fidget" as unreliable and doesn't send it
 // anymore - that weight moved onto "stopped", the signal Saba confirmed is solid.
