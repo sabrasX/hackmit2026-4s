@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import confetti from 'canvas-confetti'
 import DoodleBackground from '../components/DoodleBackground.jsx'
 import StruggleChart from '../components/StruggleChart.jsx'
+import CalmStressChart, { calmBaseline } from '../components/CalmStressChart.jsx'
 
 export default function Results() {
   const navigate = useNavigate()
@@ -15,6 +16,12 @@ export default function Results() {
       return null
     }
   }, [])
+
+  // Real Arduino samples land in session.sensorSamples; calm is the fallback.
+  const sensorSamples = useMemo(
+    () => session?.sensorSamples?.length ? session.sensorSamples : calmBaseline(session?.words),
+    [session],
+  )
 
   const score = session?.overallScore ?? 100
   const message =
@@ -71,6 +78,11 @@ export default function Results() {
                 <p className="mt-3 text-xs text-slate-400">Lower is better</p>
               </div>
             </div>
+          </div>
+
+          <div className="mb-8">
+            <h2 className="font-display mb-4 text-xl font-bold text-sky-700">Calm vs stressed</h2>
+            <CalmStressChart samples={sensorSamples} />
           </div>
 
           <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">

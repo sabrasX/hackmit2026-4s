@@ -43,6 +43,6 @@ export const SECONDS_PER_LETTER = 3
 // Live support triggers on the rolling score (0-100) over ROLLING_WINDOW_S seconds.
 export const ROLLING_WINDOW_S = 5
 export const SUPPORT_LEVELS = [
-  { level: 1, minScore: 40, holdSeconds: 3 }, // encouragement + read word aloud
-  { level: 2, minScore: 50, holdSeconds: 5 }, // play the word's tutorial video
+  { level: 1, minScore: 30, holdSeconds: 2 }, // encouragement + read word aloud
+  { level: 2, minScore: 40, holdSeconds: 2 }, // play the word's tutorial video
 ]
