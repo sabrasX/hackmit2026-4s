@@ -129,7 +129,7 @@ export default function Writing() {
 
         {step === STEPS.intro && (
           <div className="card-doodle flex flex-1 flex-col items-center justify-center gap-8 p-10 text-center">
-            <span className="text-7xl" aria-hidden="true">📝</span>
+            <img src="/rabbit.png" alt="" className="h-40 w-40 object-contain animate-bounce-gentle" />
             <div>
               <h1 className="font-display text-3xl font-bold text-sky-700 sm:text-4xl">
                 Writing Practice

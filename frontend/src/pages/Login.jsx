@@ -38,10 +38,13 @@ export default function Login() {
       <main className="flex min-h-dvh flex-col items-center justify-center px-6 py-12">
         <div className="card-doodle w-full max-w-md p-8 sm:p-10">
           <div className="mb-8 text-center">
-            <div className="mb-4 text-6xl animate-wiggle" aria-hidden="true">
-              ✏️
-            </div>
-            <h1 className="font-display text-4xl font-bold text-sky-700">The Pen Pal</h1>
+            <h1>
+              <img
+                src="/logo.png"
+                alt="The Pen Pal"
+                className="mx-auto w-64 max-w-full animate-wiggle"
+              />
+            </h1>
             <p className="mt-3 text-lg text-slate-500">Learning made fun!</p>
           </div>
 
@@ -89,6 +92,8 @@ export default function Login() {
             </p>
           )}
         </div>
+
+        <img src="/friends.png" alt="" className="mt-8 w-56 max-w-full opacity-90" />
       </main>
     </DoodleBackground>
   )
