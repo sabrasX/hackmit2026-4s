@@ -15,7 +15,6 @@ const GRID_LINES = [0, 25, 50, 75, 100]
 
 const W = 600
 const H = 200
-const PAD = { top: 8, right: 8, bottom: 8, left: 8 }
 
 function colorFor(state) {
   return state === 'stressed' ? STRESSED : CALM
@@ -26,10 +25,12 @@ function colorFor(state) {
 export function samplesFromWords(words = []) {
   const out = []
   let t = 0
-  words.forEach((w) => {
+  words.forEach((w, wi) => {
     const dur = Math.max(w.seconds ?? 0, 0.5)
     const steps = Math.max(2, Math.round(dur * 2))
-    for (let i = 0; i < steps; i++) {
+    const last = wi === words.length - 1
+    // Each word owns its start boundary; the final word also emits the session end.
+    for (let i = 0; i < steps + (last ? 1 : 0); i++) {
       const wobble = Math.sin((t + i) * 1.7) * 6
       const stress = Math.min(100, Math.max(0, w.score + wobble))
       out.push({
@@ -53,10 +54,8 @@ export default function CalmStressChart({ samples = [] }) {
 
   const tMax = samples[samples.length - 1].t || 1
   const tMin = samples[0].t
-  const innerW = W - PAD.left - PAD.right
-  const innerH = H - PAD.top - PAD.bottom
-  const x = (t) => PAD.left + ((t - tMin) / (tMax - tMin || 1)) * innerW
-  const y = (v) => PAD.top + (1 - v / 100) * innerH
+  const x = (t) => ((t - tMin) / (tMax - tMin || 1)) * W
+  const y = (v) => (1 - v / 100) * H
 
   const confidencePath = samples
     .map((s, i) => `${i === 0 ? 'M' : 'L'}${x(s.t).toFixed(1)},${y(s.confidence ?? 0).toFixed(1)}`)
@@ -135,8 +134,8 @@ export default function CalmStressChart({ samples = [] }) {
               <line
                 x1={x(current.t)}
                 x2={x(current.t)}
-                y1={PAD.top}
-                y2={H - PAD.bottom}
+                y1={0}
+                y2={H}
                 stroke="#94a3b8"
                 strokeDasharray="3 3"
                 vectorEffect="non-scaling-stroke"
