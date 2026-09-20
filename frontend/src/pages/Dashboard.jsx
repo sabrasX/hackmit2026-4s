@@ -1,11 +1,30 @@
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import DoodleBackground from '../components/DoodleBackground.jsx'
 import ActivityCard from '../components/ActivityCard.jsx'
+import PastSessions from '../components/PastSessions.jsx'
 import { useAuth } from '../hooks/useAuth.jsx'
+import { getSessions } from '../lib/firebase.js'
 
 export default function Dashboard() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const [sessions, setSessions] = useState(null)
+
+  useEffect(() => {
+    if (!user?.uid) return
+    let cancelled = false
+    getSessions(user.uid)
+      .then((rows) => {
+        if (!cancelled) setSessions(rows)
+      })
+      .catch(() => {
+        if (!cancelled) setSessions([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [user])
 
   return (
     <DoodleBackground>
@@ -42,6 +61,8 @@ export default function Dashboard() {
             disabled
           />
         </div>
+
+        <PastSessions sessions={sessions} />
       </main>
     </DoodleBackground>
   )
