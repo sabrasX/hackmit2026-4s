@@ -1,16 +1,15 @@
-// Line graph of the Arduino stress reading over the session. Each segment of the
-// stress line is coloured by the processed state at that moment (green = calm,
-// red = stressed). A second, blue line shows confidence in that classification.
-// Drawn directly in SVG so the line can change colour per segment.
+// Line graph of the Arduino calm/stressed classifier over the session. The line
+// height is the classifier's confidence and each segment is coloured by the
+// detected state at that moment (green = calm, red = stressed). Drawn directly
+// in SVG so the line can change colour per segment.
 //
 // Expected sample shape (from the Arduino pipeline once it is wired up):
-//   { t: seconds since session start, stress: 0-100, confidence: 0-100, state: 'calm' | 'stressed' }
+//   { t: seconds since session start, confidence: 0-100, state: 'calm' | 'stressed' }
 
 import { useState } from 'react'
 
 const CALM = '#6bcb77'
 const STRESSED = '#ff6b6b'
-const CONFIDENCE = '#5d94d6'
 const GRID_LINES = [0, 25, 50, 75, 100]
 
 const W = 600
@@ -33,8 +32,7 @@ export function calmBaseline(words = []) {
     const t = (total * i) / steps
     out.push({
       t: +t.toFixed(2),
-      stress: Math.round(20 + Math.sin(t * 1.3) * 3),
-      confidence: 50,
+      confidence: Math.round(70 + Math.sin(t * 1.3) * 3),
       state: 'calm',
     })
   }
@@ -52,10 +50,6 @@ export default function CalmStressChart({ samples = [] }) {
   const tMin = samples[0].t
   const x = (t) => ((t - tMin) / (tMax - tMin || 1)) * W
   const y = (v) => (1 - v / 100) * H
-
-  const confidencePath = samples
-    .map((s, i) => `${i === 0 ? 'M' : 'L'}${x(s.t).toFixed(1)},${y(s.confidence ?? 0).toFixed(1)}`)
-    .join(' ')
 
   const current = hovered != null ? samples[hovered] : null
 
@@ -99,25 +93,15 @@ export default function CalmStressChart({ samples = [] }) {
               setHovered(best)
             }}
           >
-            <path
-              d={confidencePath}
-              fill="none"
-              stroke={CONFIDENCE}
-              strokeWidth="2"
-              strokeDasharray="6 4"
-              strokeLinejoin="round"
-              vectorEffect="non-scaling-stroke"
-            />
-
             {samples.slice(1).map((s, i) => {
               const prev = samples[i]
               return (
                 <line
                   key={i}
                   x1={x(prev.t)}
-                  y1={y(prev.stress)}
+                  y1={y(prev.confidence ?? 0)}
                   x2={x(s.t)}
-                  y2={y(s.stress)}
+                  y2={y(s.confidence ?? 0)}
                   stroke={colorFor(s.state)}
                   strokeWidth="3.5"
                   strokeLinecap="round"
@@ -150,9 +134,6 @@ export default function CalmStressChart({ samples = [] }) {
             >
               <p className="font-display text-sm font-bold text-sky-700">{current.t}s</p>
               <p className="text-xs text-slate-600">
-                Stress: <span className="font-mono font-bold">{current.stress}</span>
-              </p>
-              <p className="text-xs text-slate-600">
                 Confidence: <span className="font-mono font-bold">{current.confidence ?? '–'}</span>
               </p>
               <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-400">
@@ -173,7 +154,7 @@ export default function CalmStressChart({ samples = [] }) {
       </div>
 
       <p className="mt-3 text-center text-xs text-slate-400">
-        Stress reading over time · line colour = calm / stressed state
+        Line height = confidence · line colour = calm / stressed state
       </p>
 
       <div className="mt-3 flex flex-wrap justify-center gap-6 text-sm text-slate-500">
@@ -184,13 +165,6 @@ export default function CalmStressChart({ samples = [] }) {
         <span className="flex items-center gap-2">
           <span className="inline-block h-1 w-5 rounded-full" style={{ background: STRESSED }} />
           Stressed
-        </span>
-        <span className="flex items-center gap-2">
-          <span
-            className="inline-block h-0 w-5 border-t-2 border-dashed"
-            style={{ borderColor: CONFIDENCE }}
-          />
-          Confidence
         </span>
       </div>
     </div>
